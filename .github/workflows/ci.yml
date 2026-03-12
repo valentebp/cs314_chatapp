@@ -2,9 +2,9 @@ name: App CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, lian]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, lian]
 
 jobs:
   backend:
