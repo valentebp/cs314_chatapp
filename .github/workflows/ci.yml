@@ -7,8 +7,8 @@ on:
     branches: [main, develop]
 
 jobs:
-  backend-test-and-build:
-    name: Backend Test & Build
+  backend:
+    name: Backend CI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -19,28 +19,28 @@ jobs:
         with:
           node-version: 20
 
-      - name: Cache backend dependencies
+      - name: Cache npm
         uses: actions/cache@v4
         with:
-          path: backend/node_modules
+          path: ~/.npm
           key: ${{ runner.os }}-backend-npm-${{ hashFiles('backend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-backend-npm-
 
-      - name: Install backend dependencies
+      - name: Install dependencies
         working-directory: backend
         run: npm ci
 
-      - name: Build backend
+      - name: Build
         working-directory: backend
         run: npm run build
 
-      - name: Run backend tests
+      - name: Run tests
         working-directory: backend
         run: npm test
 
-  frontend-test-and-build:
-    name: Frontend Test & Build
+  frontend:
+    name: Frontend CI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -51,30 +51,30 @@ jobs:
         with:
           node-version: 20
 
-      - name: Cache frontend dependencies
+      - name: Cache npm
         uses: actions/cache@v4
         with:
-          path: frontend/node_modules
+          path: ~/.npm
           key: ${{ runner.os }}-frontend-npm-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-frontend-npm-
 
-      - name: Install frontend dependencies
+      - name: Install dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Run frontend tests
+      - name: Run tests
         working-directory: frontend
         run: npm test -- --coverage --watchAll=false --ci
 
-      - name: Upload frontend coverage report
+      - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: frontend-coverage-report
           path: frontend/coverage/
 
-      - name: Build frontend for production
+      - name: Build
         working-directory: frontend
         run: npm run build
         env:
