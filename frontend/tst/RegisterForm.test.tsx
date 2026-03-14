@@ -89,5 +89,9 @@ describe('RegisterForm', () => {
     await user.type(screen.getByLabelText(/confirm password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
     expect(await screen.findByText('Email already in use.')).toBeInTheDocument();
+    // Wait for the finally block's setIsSubmitting(false) to flush, avoiding act() warnings.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /create account/i })).not.toBeDisabled()
+    );
   });
 });
