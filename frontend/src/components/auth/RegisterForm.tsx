@@ -8,6 +8,8 @@ const RegisterForm = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -25,6 +27,7 @@ const RegisterForm = () => {
     if (!formData.email.trim()) return 'Email is required.';
     if (formData.password.length < 6) return 'Password must be at least 6 characters.';
     if (formData.password !== formData.confirmPassword) return 'Passwords do not match.';
+    if (!formData.firstName.trim()) return 'First name is required.';
     return null;
   };
 
@@ -40,11 +43,9 @@ const RegisterForm = () => {
 
     setIsSubmitting(true);
     try {
-      // Do not send confirmPassword to the server.
       const { confirmPassword, ...payload } = formData;
       await signup(payload);
-      // New users go to profile setup.
-      navigate('/profile');
+      navigate('/home');
     } catch (err) {
       const serverMessage = err.response?.data?.message;
       setError(serverMessage || 'Registration failed. Please try again.');
@@ -58,6 +59,37 @@ const RegisterForm = () => {
       <h1 className="auth-form__title">Create Account</h1>
 
       <ErrorMessage message={error} />
+
+      <div className="form-group">
+        <label htmlFor="firstName" className="form-label">
+          First Name
+        </label>
+        <input
+          id="firstName"
+          type="text"
+          name="firstName"
+          className="form-input"
+          value={formData.firstName}
+          onChange={handleChange}
+          autoComplete="given-name"
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="lastName" className="form-label">
+          Last Name
+        </label>
+        <input
+          id="lastName"
+          type="text"
+          name="lastName"
+          className="form-input"
+          value={formData.lastName}
+          onChange={handleChange}
+          autoComplete="family-name"
+        />
+      </div>
 
       <div className="form-group">
         <label htmlFor="email" className="form-label">

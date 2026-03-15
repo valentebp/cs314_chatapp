@@ -24,8 +24,10 @@ const renderForm = () =>
 describe('RegisterForm', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('renders all three fields', () => {
+  it('renders all required fields', () => {
     renderForm();
+    expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
@@ -51,31 +53,37 @@ describe('RegisterForm', () => {
     expect(await screen.findByText(/at least 6 characters/i)).toBeInTheDocument();
   });
 
-  it('calls signup with email and password (no confirmPassword)', async () => {
+  it('calls signup with all required fields (no confirmPassword)', async () => {
     mockSignup.mockResolvedValueOnce({});
     const user = userEvent.setup();
     renderForm();
+    await user.type(screen.getByLabelText(/first name/i), 'John');
+    await user.type(screen.getByLabelText(/last name/i), 'Doe');
     await user.type(screen.getByLabelText(/^email/i), 'user@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'password123');
     await user.type(screen.getByLabelText(/confirm password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
     await waitFor(() =>
       expect(mockSignup).toHaveBeenCalledWith({
+        firstName: 'John',
+        lastName: 'Doe',
         email: 'user@example.com',
         password: 'password123',
       })
     );
   });
 
-  it('navigates to /profile after successful registration', async () => {
+  it('navigates to /home after successful registration', async () => {
     mockSignup.mockResolvedValueOnce({});
     const user = userEvent.setup();
     renderForm();
+    await user.type(screen.getByLabelText(/first name/i), 'John');
+    await user.type(screen.getByLabelText(/last name/i), 'Doe');
     await user.type(screen.getByLabelText(/^email/i), 'user@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'password123');
     await user.type(screen.getByLabelText(/confirm password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/profile'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/home'));
   });
 
   it('shows a server error on signup failure', async () => {
@@ -84,6 +92,8 @@ describe('RegisterForm', () => {
     });
     const user = userEvent.setup();
     renderForm();
+    await user.type(screen.getByLabelText(/first name/i), 'John');
+    await user.type(screen.getByLabelText(/last name/i), 'Doe');
     await user.type(screen.getByLabelText(/^email/i), 'taken@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'password123');
     await user.type(screen.getByLabelText(/confirm password/i), 'password123');
