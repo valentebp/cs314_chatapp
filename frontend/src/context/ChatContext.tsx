@@ -106,39 +106,44 @@ export const ChatProvider = ({ children }) => {
         )
       );
       const mapped = mine.map((conv) => mapConversation(conv, user?._id));
-      setConversations(mapped);
+
+      // Fetch all lastMessage previews in parallel before rendering so the
+      // sidebar appears once, already sorted — no visible re-sort flash.
+      const msgResults = await Promise.allSettled(
+        mapped.map(async (conv) => {
+          if (!conv.dmId) return { dmId: conv.dmId, msgs: [] };
+          const msgRes = await api.get(`/api/messages/${conv.dmId}`);
+          return { dmId: conv.dmId, msgs: Array.isArray(msgRes.data) ? msgRes.data : [] };
+        })
+      );
+
+      const newUnread: Record<string, number> = {};
+      const withPreviews = mapped.map((conv, i) => {
+        const result = msgResults[i];
+        if (result.status !== 'fulfilled' || !result.value) return conv;
+        const { msgs } = result.value;
+        if (msgs.length === 0) return conv;
+        const last = msgs[msgs.length - 1];
+        const lastRead = localStorage.getItem(`chatapp_lastRead_${conv.dmId}`);
+        const lastReadTime = lastRead ? new Date(lastRead).getTime() : 0;
+        const unread = msgs.filter(
+          (m) => new Date(m.timestamp).getTime() > lastReadTime
+        ).length;
+        if (unread > 0) newUnread[conv.dmId] = unread;
+        return { ...conv, lastMessage: { content: last.content, timestamp: last.timestamp } };
+      });
+
+      setConversations(withPreviews);
+      if (Object.keys(newUnread).length > 0) {
+        setUnreadCounts((prev) => ({ ...prev, ...newUnread }));
+      }
+
       // Join all conversation rooms so real-time messages arrive without
       // the user having to open each conversation first.
       // Use a small delay to allow the socket to finish connecting on page load.
       setTimeout(() => {
-        mapped.forEach((conv) => socketService.emit('join', conv.dmId));
+        withPreviews.forEach((conv) => socketService.emit('join', conv.dmId));
       }, 500);
-      // Populate lastMessage previews in the background — one request per
-      // conversation, failures are silently ignored.
-      Promise.allSettled(
-        mapped.map(async (conv) => {
-          if (!conv.dmId) return;
-          const msgRes = await api.get(`/api/messages/${conv.dmId}`);
-          const msgs = Array.isArray(msgRes.data) ? msgRes.data : [];
-          if (msgs.length === 0) return;
-          const last = msgs[msgs.length - 1];
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.dmId === conv.dmId
-                ? { ...c, lastMessage: { content: last.content, timestamp: last.timestamp } }
-                : c
-            )
-          );
-          const lastRead = localStorage.getItem(`chatapp_lastRead_${conv.dmId}`);
-          const lastReadTime = lastRead ? new Date(lastRead).getTime() : 0;
-          const unread = msgs.filter(
-            (m) => new Date(m.timestamp).getTime() > lastReadTime
-          ).length;
-          if (unread > 0) {
-            setUnreadCounts((prev) => ({ ...prev, [conv.dmId]: unread }));
-          }
-        })
-      );
     } catch {
       setConversationsError('Failed to load conversations. Please refresh.');
     } finally {
