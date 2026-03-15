@@ -739,6 +739,69 @@ a {
 }
 
 /* ============================================================
+   Sidebar — two-button row
+   ============================================================ */
+.sidebar__search-bar--row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ============================================================
+   Group member chips (GroupCreationModal selected members)
+   ============================================================ */
+.group-members-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.group-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.group-member-chip__remove {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  line-height: 1;
+  padding: 0;
+}
+.group-member-chip__remove:hover {
+  color: var(--color-danger);
+}
+
+/* ============================================================
+   Chat window — group member count subtitle
+   ============================================================ */
+.chat-window__member-count {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+/* ============================================================
+   Message bubble — sender name (group chats)
+   ============================================================ */
+.message-bubble__sender {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-bottom: 2px;
+  padding-left: 2px;
+}
+
+/* ============================================================
    Message Input
    ============================================================ */
 .message-input {

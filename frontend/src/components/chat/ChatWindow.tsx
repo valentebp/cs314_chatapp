@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useChat } from '../../context/ChatContext';
-import { useAuth } from '../../context/AuthContext';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import AvatarDisplay from '../profile/AvatarDisplay';
@@ -12,10 +11,8 @@ const ChatWindow = () => {
     messages,
     isLoadingMessages,
     messagesError,
-    deleteConversation,
     leaveConversation,
   } = useChat();
-  const { user } = useAuth();
   const [actionError, setActionError] = useState('');
   const [isActing, setIsActing] = useState(false);
 
@@ -30,26 +27,15 @@ const ChatWindow = () => {
     );
   }
 
+  const isGroup = selectedConversation.type === 'group';
   const contact = selectedConversation.contact;
-  const contactName = contact?.displayName || contact?.email || 'Unknown';
-  const isCreator =
-    user?._id?.toString() === selectedConversation.creatorId?.toString();
-
-  const handleDelete = async () => {
-    if (!window.confirm(`Delete conversation with ${contactName}? This cannot be undone.`)) return;
-    setIsActing(true);
-    setActionError('');
-    try {
-      await deleteConversation(selectedConversation.dmId);
-    } catch (err) {
-      const serverMessage = err.response?.data?.message;
-      setActionError(serverMessage || 'Failed to delete conversation.');
-      setIsActing(false);
-    }
-  };
+  const contactName = isGroup
+    ? selectedConversation.groupName || 'Group Chat'
+    : contact?.displayName || contact?.email || 'Unknown';
+  const memberCount = isGroup ? (selectedConversation.members?.length ?? 0) : null;
 
   const handleLeave = async () => {
-    if (!window.confirm(`Leave conversation with ${contactName}?`)) return;
+    if (!window.confirm(`Leave "${contactName}"?`)) return;
     setIsActing(true);
     setActionError('');
     try {
@@ -65,35 +51,33 @@ const ChatWindow = () => {
     <div className="chat-window">
       {/* Header */}
       <div className="chat-window__header">
-        <AvatarDisplay src={contact?.profilePic} name={contactName} size="medium" />
+        <AvatarDisplay src={!isGroup ? contact?.profilePic : undefined} name={contactName} size="medium" />
         <div className="chat-window__header-info">
           <span className="chat-window__contact-name">{contactName}</span>
+          {memberCount !== null && (
+            <span className="chat-window__member-count">{memberCount} members</span>
+          )}
         </div>
-        {isCreator ? (
-          <button
-            className="btn btn--danger btn--sm"
-            onClick={handleDelete}
-            disabled={isActing || !selectedConversation.dmId}
-            aria-label={`Delete conversation with ${contactName}`}
-          >
-            {isActing ? 'Deleting...' : 'Delete'}
-          </button>
-        ) : (
-          <button
-            className="btn btn--secondary btn--sm"
-            onClick={handleLeave}
-            disabled={isActing || !selectedConversation.dmId}
-            aria-label={`Leave conversation with ${contactName}`}
-          >
-            {isActing ? 'Leaving...' : 'Leave'}
-          </button>
-        )}
+        <button
+          className="btn btn--secondary btn--sm"
+          onClick={handleLeave}
+          disabled={isActing || !selectedConversation.dmId}
+          aria-label={`Leave "${contactName}"`}
+        >
+          {isActing ? 'Leaving...' : 'Leave'}
+        </button>
       </div>
 
       <ErrorMessage message={actionError} />
 
       {/* Messages */}
-      <MessageList messages={messages} isLoading={isLoadingMessages} error={messagesError} />
+      <MessageList
+        messages={messages}
+        isLoading={isLoadingMessages}
+        error={messagesError}
+        isGroup={isGroup}
+        members={selectedConversation.members}
+      />
 
       {/* Input */}
       <MessageInput />

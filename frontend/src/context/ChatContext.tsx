@@ -14,22 +14,32 @@ const ChatContext = createContext(null);
 
 // Map a backend conversation to the internal shape the UI expects.
 const mapConversation = (conv, currentUserId) => {
-  const other = conv.participants?.find(
-    (p) => p._id?.toString() !== currentUserId?.toString()
-  );
+  const isGroup = conv.type === 'group';
+  const other = !isGroup
+    ? conv.participants?.find((p) => p._id?.toString() !== currentUserId?.toString())
+    : null;
   return {
     dmId: conv._id,
+    type: conv.type ?? 'dm',
     creatorId: conv.creatorId,
-    contact: other
-      ? {
-          _id: other._id,
-          displayName:
-            [other.firstName, other.lastName].filter(Boolean).join(' ') ||
-            other.email ||
-            'Unknown',
-          email: other.email,
-        }
-      : { _id: null, displayName: 'Unknown', email: '' },
+    contact: !isGroup
+      ? other
+        ? {
+            _id: other._id,
+            displayName:
+              [other.firstName, other.lastName].filter(Boolean).join(' ') ||
+              other.email ||
+              'Unknown',
+            email: other.email,
+          }
+        : { _id: null, displayName: 'Unknown', email: '' }
+      : null,
+    groupName: isGroup ? (conv.name || 'Group Chat') : null,
+    members: (conv.participants ?? []).map((p) => ({
+      _id: p._id,
+      displayName:
+        [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unknown',
+    })),
     lastMessage: null,
     unreadCount: 0,
   };
@@ -102,6 +112,14 @@ export const ChatProvider = ({ children }) => {
                 : c
             )
           );
+          const lastRead = localStorage.getItem(`chatapp_lastRead_${conv.dmId}`);
+          const lastReadTime = lastRead ? new Date(lastRead).getTime() : 0;
+          const unread = msgs.filter(
+            (m) => new Date(m.timestamp).getTime() > lastReadTime
+          ).length;
+          if (unread > 0) {
+            setUnreadCounts((prev) => ({ ...prev, [conv.dmId]: unread }));
+          }
         })
       );
     } catch {
@@ -124,6 +142,64 @@ export const ChatProvider = ({ children }) => {
       setUnreadCounts({});
     }
   }, [user, loadConversations]);
+
+  // Poll for new conversations every 5 seconds.
+  // The backend only broadcasts socket messages to sockets already in the room,
+  // so a recipient added to a brand-new conversation will never receive the first
+  // message in real-time. Polling detects the new conversation, joins its socket
+  // room, and from then on messages arrive normally via socket.
+  const pollForNewConversations = useCallback(async () => {
+    if (!userRef.current) return;
+    try {
+      const res = await api.get('/api/conversations');
+      const raw = Array.isArray(res.data) ? res.data : [];
+      const mine = raw.filter((conv) =>
+        conv.participants?.some(
+          (p) => p._id?.toString() === userRef.current?._id?.toString()
+        )
+      );
+      const mapped = mine.map((conv) => mapConversation(conv, userRef.current?._id));
+      setConversations((prev) => {
+        const existingIds = new Set(prev.map((c) => c.dmId?.toString()));
+        const newConvs = mapped.filter((c) => !existingIds.has(c.dmId?.toString()));
+        if (newConvs.length === 0) return prev;
+        newConvs.forEach((conv) => socketService.emit('join', conv.dmId));
+        Promise.allSettled(
+          newConvs.map(async (conv) => {
+            if (!conv.dmId) return;
+            const msgRes = await api.get(`/api/messages/${conv.dmId}`);
+            const msgs = Array.isArray(msgRes.data) ? msgRes.data : [];
+            if (msgs.length === 0) return;
+            const last = msgs[msgs.length - 1];
+            setConversations((p) =>
+              p.map((c) =>
+                c.dmId === conv.dmId
+                  ? { ...c, lastMessage: { content: last.content, timestamp: last.timestamp } }
+                  : c
+              )
+            );
+            const lastRead = localStorage.getItem(`chatapp_lastRead_${conv.dmId}`);
+            const lastReadTime = lastRead ? new Date(lastRead).getTime() : 0;
+            const unread = msgs.filter(
+              (m) => new Date(m.timestamp).getTime() > lastReadTime
+            ).length;
+            if (unread > 0) {
+              setUnreadCounts((p) => ({ ...p, [conv.dmId]: unread }));
+            }
+          })
+        );
+        return [...prev, ...newConvs];
+      });
+    } catch {
+      // silently ignore poll failures
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(pollForNewConversations, 5000);
+    return () => clearInterval(interval);
+  }, [user, pollForNewConversations]);
 
   // Real-time incoming message handler.
   // Backend emits 'message' event with { conversationId, content }.
@@ -195,6 +271,7 @@ export const ChatProvider = ({ children }) => {
 
     setSelectedConversation(conversation);
     setUnreadCounts((prev) => ({ ...prev, [conversation.dmId]: 0 }));
+    localStorage.setItem(`chatapp_lastRead_${conversation.dmId}`, new Date().toISOString());
 
     // Join the socket room for this conversation.
     socketService.emit('join', conversation.dmId);
@@ -260,6 +337,8 @@ export const ChatProvider = ({ children }) => {
             : c
         )
       );
+      // Mark as read for the sender so their own message doesn't show as unread on reload.
+      localStorage.setItem(`chatapp_lastRead_${selectedConversationRef.current.dmId}`, new Date().toISOString());
       // Register an echo to suppress before the socket broadcast arrives.
       pendingEchoes.current.push({
         conversationId: selectedConversationRef.current.dmId,

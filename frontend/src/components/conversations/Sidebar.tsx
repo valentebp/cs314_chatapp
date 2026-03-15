@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import ConversationItem from './ConversationItem';
 import ContactSearch from './ContactSearch';
+import GroupCreationModal from './GroupCreationModal';
 import AvatarDisplay from '../profile/AvatarDisplay';
 import ErrorMessage from '../shared/ErrorMessage';
 import LoadingSpinner from '../shared/LoadingSpinner';
@@ -20,6 +21,7 @@ const Sidebar = () => {
   } = useChat();
   const navigate = useNavigate();
   const [showSearch, setShowSearch] = useState(false);
+  const [showGroup, setShowGroup] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -52,13 +54,19 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* New conversation button */}
-      <div className="sidebar__search-bar">
+      {/* New conversation buttons */}
+      <div className="sidebar__search-bar sidebar__search-bar--row">
         <button
           className="btn btn--secondary btn--full"
           onClick={() => setShowSearch(true)}
         >
-          + New Conversation
+          + New DM
+        </button>
+        <button
+          className="btn btn--secondary btn--full"
+          onClick={() => setShowGroup(true)}
+        >
+          + New Group
         </button>
       </div>
 
@@ -94,6 +102,15 @@ const Sidebar = () => {
         <div className="modal-overlay" onClick={() => setShowSearch(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <ContactSearch onClose={() => setShowSearch(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Group creation modal */}
+      {showGroup && (
+        <div className="modal-overlay" onClick={() => setShowGroup(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <GroupCreationModal onClose={() => setShowGroup(false)} />
           </div>
         </div>
       )}
