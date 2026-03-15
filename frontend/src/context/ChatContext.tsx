@@ -12,6 +12,29 @@ import { useAuth } from './AuthContext';
 
 const ChatContext = createContext(null);
 
+// Map a backend conversation to the internal shape the UI expects.
+const mapConversation = (conv, currentUserId) => {
+  const other = conv.participants?.find(
+    (p) => p._id?.toString() !== currentUserId?.toString()
+  );
+  return {
+    dmId: conv._id,
+    creatorId: conv.creatorId,
+    contact: other
+      ? {
+          _id: other._id,
+          displayName:
+            [other.firstName, other.lastName].filter(Boolean).join(' ') ||
+            other.email ||
+            'Unknown',
+          email: other.email,
+        }
+      : { _id: null, displayName: 'Unknown', email: '' },
+    lastMessage: null,
+    unreadCount: 0,
+  };
+};
+
 export const ChatProvider = ({ children }) => {
   const { user } = useAuth();
 
@@ -24,34 +47,45 @@ export const ChatProvider = ({ children }) => {
   const [conversationsError, setConversationsError] = useState(null);
   const [messagesError, setMessagesError] = useState(null);
 
-  // A ref so the socket event handler always has the current selected conversation
-  // without needing to re-register the listener on every state change.
   const selectedConversationRef = useRef(null);
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
 
+  // Always-current reference to the authenticated user for use inside callbacks.
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // Queue of socket echoes to ignore (messages we sent ourselves via HTTP first).
+  const pendingEchoes = useRef<{ conversationId: string; content: string }[]>([]);
+
   const loadConversations = useCallback(async () => {
     setIsLoadingConversations(true);
     setConversationsError(null);
     try {
-      const res = await api.get('/api/contacts/get-contacts-for-list');
-      const data = Array.isArray(res.data) ? res.data : [];
-      setConversations(data);
-      // Seed unread counts from server response if provided.
-      const counts = {};
-      data.forEach((conv) => {
-        if (conv.unreadCount) counts[conv.dmId] = conv.unreadCount;
-      });
-      setUnreadCounts(counts);
+      const res = await api.get('/api/conversations');
+      const raw = Array.isArray(res.data) ? res.data : [];
+      // Only keep conversations the current user is actually a participant in.
+      const mine = raw.filter((conv) =>
+        conv.participants?.some(
+          (p) => p._id?.toString() === user?._id?.toString()
+        )
+      );
+      const mapped = mine.map((conv) => mapConversation(conv, user?._id));
+      setConversations(mapped);
+      // Join all conversation rooms so real-time messages arrive without
+      // the user having to open each conversation first.
+      // Use a small delay to allow the socket to finish connecting on page load.
+      setTimeout(() => {
+        mapped.forEach((conv) => socketService.emit('join', conv.dmId));
+      }, 500);
     } catch {
       setConversationsError('Failed to load conversations. Please refresh.');
     } finally {
       setIsLoadingConversations(false);
     }
-  }, []);
+  }, [user]);
 
-  // Load conversations whenever the logged-in user changes.
   useEffect(() => {
     if (user) {
       loadConversations();
@@ -63,53 +97,65 @@ export const ChatProvider = ({ children }) => {
     }
   }, [user, loadConversations]);
 
-  // Register the real-time incoming message handler once, on mount.
-  // Uses refs so the handler never becomes stale.
+  // Real-time incoming message handler.
+  // Backend emits 'message' event with { conversationId, content }.
   useEffect(() => {
     const handleReceiveMessage = (message) => {
-      const { dmId } = message;
+      const convId = message.conversationId;
 
-      if (selectedConversationRef.current?.dmId === dmId) {
-        // Message belongs to the open conversation — append it.
-        setMessages((prev) => [...prev, message]);
+      // If we sent this message ourselves, we already have it from the HTTP
+      // response. The backend broadcasts to all room members including the
+      // sender, so consume the echo and skip adding a duplicate.
+      const echoIdx = pendingEchoes.current.findIndex(
+        (e) => e.conversationId === convId && e.content === message.content
+      );
+      if (echoIdx !== -1) {
+        pendingEchoes.current.splice(echoIdx, 1);
+        return;
+      }
+
+      if (selectedConversationRef.current?.dmId === convId) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            _id: `socket_${Date.now()}`,
+            senderId: message.senderId ?? 'other',
+            content: message.content,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
       } else {
-        // Message is for a different conversation — increment unread badge.
         setUnreadCounts((prev) => ({
           ...prev,
-          [dmId]: (prev[dmId] || 0) + 1,
+          [convId]: (prev[convId] || 0) + 1,
         }));
       }
 
-      // Update the last-message preview in the sidebar regardless.
       setConversations((prev) =>
         prev.map((conv) =>
-          conv.dmId === dmId
-            ? {
-                ...conv,
-                lastMessage: { content: message.content, createdAt: message.createdAt },
-              }
+          conv.dmId === convId
+            ? { ...conv, lastMessage: { content: message.content, timestamp: new Date().toISOString() } }
             : conv
         )
       );
     };
 
-    socketService.on('receiveMessage', handleReceiveMessage);
-    return () => socketService.off('receiveMessage', handleReceiveMessage);
+    socketService.on('message', handleReceiveMessage);
+    return () => socketService.off('message', handleReceiveMessage);
   }, []);
 
   const selectConversation = useCallback(async (conversation) => {
     setSelectedConversation(conversation);
-    // Clear the unread badge as soon as the user opens the conversation.
     setUnreadCounts((prev) => ({ ...prev, [conversation.dmId]: 0 }));
+
+    // Join the socket room for this conversation.
+    socketService.emit('join', conversation.dmId);
 
     setIsLoadingMessages(true);
     setMessagesError(null);
     setMessages([]);
     try {
-      // TODO: confirm the exact request body field name with the backend team.
-      const res = await api.post('/api/messages/get-messages', {
-        dmId: conversation.dmId,
-      });
+      const res = await api.get(`/api/messages/${conversation.dmId}`);
       setMessages(Array.isArray(res.data) ? res.data : []);
     } catch {
       setMessagesError('Failed to load messages. Please try again.');
@@ -118,40 +164,66 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
-  const sendMessage = useCallback(
-    (content) => {
-      if (!selectedConversationRef.current || !content.trim()) return;
+  const sendMessage = useCallback(async (content) => {
+    if (!selectedConversationRef.current || !content.trim()) return;
 
-      // Optimistically append the message so the UI feels instant.
-      const optimistic = {
-        _id: `pending_${Date.now()}`,
-        senderId: 'optimistic',
-        content,
-        createdAt: new Date().toISOString(),
-        pending: true,
-      };
-      setMessages((prev) => [...prev, optimistic]);
+    const currentUserId = userRef.current?._id;
+    const optimistic = {
+      _id: `pending_${Date.now()}`,
+      senderId: currentUserId,
+      content,
+      timestamp: new Date().toISOString(),
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
 
-      // TODO: confirm the exact payload shape with the backend team.
-      socketService.emit('sendMessage', {
-        receiverId: selectedConversationRef.current.contact?._id,
+    try {
+      const res = await api.post('/api/messages', {
+        conversationId: selectedConversationRef.current.dmId,
         content,
       });
-    },
-    []
-  );
+      // Replace optimistic with the real saved message.
+      // Normalize senderId to string to guard against ObjectId vs string
+      // comparison mismatches in the isOwn check.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m._id === optimistic._id
+            ? { ...res.data, senderId: res.data.senderId?.toString?.() ?? currentUserId }
+            : m
+        )
+      );
+      // Register an echo to suppress before the socket broadcast arrives.
+      pendingEchoes.current.push({
+        conversationId: selectedConversationRef.current.dmId,
+        content,
+      });
+      // Notify other participants via socket.
+      socketService.emit('sendMessage', {
+        conversationId: selectedConversationRef.current.dmId,
+        content,
+      });
+    } catch {
+      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
+    }
+  }, []);
 
-  const deleteConversation = useCallback(
-    async (dmId) => {
-      await api.delete(`/api/contacts/delete-dm/${dmId}`);
-      setConversations((prev) => prev.filter((c) => c.dmId !== dmId));
-      if (selectedConversationRef.current?.dmId === dmId) {
-        setSelectedConversation(null);
-        setMessages([]);
-      }
-    },
-    []
-  );
+  const deleteConversation = useCallback(async (dmId) => {
+    await api.delete(`/api/conversations/${dmId}`);
+    setConversations((prev) => prev.filter((c) => c.dmId !== dmId));
+    if (selectedConversationRef.current?.dmId === dmId) {
+      setSelectedConversation(null);
+      setMessages([]);
+    }
+  }, []);
+
+  const leaveConversation = useCallback(async (dmId) => {
+    await api.post(`/api/conversations/${dmId}/leave`);
+    setConversations((prev) => prev.filter((c) => c.dmId !== dmId));
+    if (selectedConversationRef.current?.dmId === dmId) {
+      setSelectedConversation(null);
+      setMessages([]);
+    }
+  }, []);
 
   return (
     <ChatContext.Provider
@@ -168,6 +240,7 @@ export const ChatProvider = ({ children }) => {
         selectConversation,
         sendMessage,
         deleteConversation,
+        leaveConversation,
       }}
     >
       {children}

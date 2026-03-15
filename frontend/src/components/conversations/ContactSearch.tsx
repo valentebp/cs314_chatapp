@@ -5,10 +5,6 @@ import SearchResultItem from './SearchResultItem';
 import ErrorMessage from '../shared/ErrorMessage';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
-/**
- * A search panel that lets the user find contacts by name or email.
- * Selecting a result opens (or focuses) the DM with that contact.
- */
 const ContactSearch = ({ onClose }) => {
   const { loadConversations, selectConversation, conversations } = useChat();
   const [query, setQuery] = useState('');
@@ -31,9 +27,15 @@ const ContactSearch = ({ onClose }) => {
     setError('');
     setSearched(false);
     try {
-      // TODO: confirm the request body field name with the backend team.
-      const res = await api.post('/api/contacts/search', { searchTerm: term });
-      setResults(Array.isArray(res.data) ? res.data : []);
+      const res = await api.get(`/api/users/search?query=${encodeURIComponent(term)}`);
+      const raw = Array.isArray(res.data) ? res.data : [];
+      // Normalise: add displayName from firstName + lastName.
+      const mapped = raw.map((u) => ({
+        ...u,
+        displayName:
+          [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown',
+      }));
+      setResults(mapped);
       setSearched(true);
     } catch (err) {
       const serverMessage = err.response?.data?.message;
@@ -44,22 +46,32 @@ const ContactSearch = ({ onClose }) => {
   };
 
   const handleSelect = async (contact) => {
-    // Check if a DM with this contact already exists in the sidebar.
+    // If a DM with this contact already exists, open it.
     const existing = conversations.find((c) => c.contact?._id === contact._id);
     if (existing) {
       selectConversation(existing);
-    } else {
-      // The backend will create a new DM when the first message is sent.
-      // For now, create a local placeholder conversation and reload after sending.
-      const placeholder = {
-        dmId: null,
+      onClose();
+      return;
+    }
+
+    // Otherwise create the DM via API first, then open it.
+    try {
+      const res = await api.post('/api/conversations', {
+        type: 'dm',
+        participants: [contact._id],
+      });
+      const conv = res.data;
+      const newConv = {
+        dmId: conv._id,
         contact,
         lastMessage: null,
         unreadCount: 0,
       };
-      selectConversation(placeholder);
-      // Reload the sidebar so the new DM appears after the first message.
       await loadConversations();
+      selectConversation(newConv);
+    } catch {
+      setError('Could not start conversation. Please try again.');
+      return;
     }
     onClose();
   };
