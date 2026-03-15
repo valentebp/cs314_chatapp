@@ -26,7 +26,10 @@ const formatPreviewTime = (timestamp) => {
  */
 const ConversationItem = ({ conversation, isSelected, unreadCount, onClick }) => {
   const { contact, lastMessage } = conversation;
-  const name = contact?.displayName || contact?.email || 'Unknown';
+  const name =
+    conversation.type === 'group'
+      ? conversation.groupName || 'Group Chat'
+      : contact?.displayName || contact?.email || 'Unknown';
   const preview = lastMessage?.content || 'No messages yet';
   const time = formatPreviewTime(lastMessage?.timestamp);
   const hasUnread = unreadCount > 0;
