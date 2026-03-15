@@ -381,6 +381,22 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   const leaveConversation = useCallback(async (dmId) => {
+    const conv = conversationsRef.current.find((c) => c.dmId === dmId);
+    const userName =
+      [userRef.current?.firstName, userRef.current?.lastName].filter(Boolean).join(' ') ||
+      userRef.current?.email ||
+      'Someone';
+    const leaveText =
+      conv?.type === 'group'
+        ? `${userName} has left the group.`
+        : `${userName} has left the conversation.`;
+
+    // Post the leaving message so all participants see it (persisted + real-time).
+    try {
+      await api.post('/api/messages', { conversationId: dmId, content: leaveText });
+      socketService.emit('sendMessage', { conversationId: dmId, content: leaveText });
+    } catch { /* silently ignore — leave proceeds regardless */ }
+
     await api.post(`/api/conversations/${dmId}/leave`);
     setConversations((prev) => prev.filter((c) => c.dmId !== dmId));
     if (selectedConversationRef.current?.dmId === dmId) {

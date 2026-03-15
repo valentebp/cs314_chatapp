@@ -48,9 +48,19 @@ const MessageList = ({ messages, isLoading, error, isGroup = false, members = []
     return member?.displayName ?? null;
   };
 
+  const isLeaveNotice = (content) =>
+    /has left the (conversation|group)\.$/.test(content);
+
   return (
     <div className="message-list">
       {messages.map((msg) => {
+        if (isLeaveNotice(msg.content)) {
+          return (
+            <div key={msg._id} className="message-system-notice">
+              {msg.content}
+            </div>
+          );
+        }
         const isOwn = msg.senderId?.toString() === user?._id?.toString();
         return (
           <MessageBubble
