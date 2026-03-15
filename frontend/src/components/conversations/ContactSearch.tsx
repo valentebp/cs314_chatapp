@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import SearchResultItem from './SearchResultItem';
 import ErrorMessage from '../shared/ErrorMessage';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const ContactSearch = ({ onClose }) => {
-  const { loadConversations, selectConversation, conversations } = useChat();
+  const { user } = useAuth();
+  const { addConversation, selectConversation, conversations } = useChat();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -30,11 +32,13 @@ const ContactSearch = ({ onClose }) => {
       const res = await api.get(`/api/users/search?query=${encodeURIComponent(term)}`);
       const raw = Array.isArray(res.data) ? res.data : [];
       // Normalise: add displayName from firstName + lastName.
-      const mapped = raw.map((u) => ({
-        ...u,
-        displayName:
-          [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown',
-      }));
+      const mapped = raw
+        .filter((u) => u._id?.toString() !== user?._id?.toString())
+        .map((u) => ({
+          ...u,
+          displayName:
+            [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown',
+        }));
       setResults(mapped);
       setSearched(true);
     } catch (err) {
@@ -63,11 +67,12 @@ const ContactSearch = ({ onClose }) => {
       const conv = res.data;
       const newConv = {
         dmId: conv._id,
+        creatorId: conv.creatorId?.toString(),
         contact,
         lastMessage: null,
         unreadCount: 0,
       };
-      await loadConversations();
+      addConversation(newConv);
       selectConversation(newConv);
     } catch {
       setError('Could not start conversation. Please try again.');
