@@ -10,7 +10,7 @@ import ErrorMessage from '../shared/ErrorMessage';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const Sidebar = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const {
     conversations,
     selectedConversation,
@@ -22,11 +22,6 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const [showSearch, setShowSearch] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   const displayName = user?.displayName || user?.firstName || 'Me';
 
@@ -43,14 +38,14 @@ const Sidebar = () => {
       <div className="sidebar__header">
         <button
           className="sidebar__user-btn"
-          onClick={() => navigate('/profile')}
-          aria-label="Go to profile"
+          onClick={() => navigate('/settings')}
+          aria-label="Go to settings"
         >
           <AvatarDisplay src={user?.profilePic} name={displayName} size="small" />
           <span className="sidebar__username">{displayName}</span>
         </button>
-        <button className="btn btn--icon sidebar__logout-btn" onClick={handleLogout} aria-label="Log out">
-          &#x2192;
+        <button className="btn btn--icon sidebar__logout-btn" onClick={() => navigate('/settings')} aria-label="Settings">
+          &#x2699;
         </button>
       </div>
 
