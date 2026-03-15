@@ -738,6 +738,15 @@ a {
   color: var(--color-text-muted);
 }
 
+.message-system-notice {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: 4px 16px;
+  margin: 4px 0;
+}
+
 /* ============================================================
    Sidebar — two-button row
    ============================================================ */
