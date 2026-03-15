@@ -189,6 +189,10 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   const selectConversation = useCallback(async (conversation) => {
+    // Clicking the already-open conversation does nothing — don't reload or
+    // scroll the user away from where they are.
+    if (selectedConversationRef.current?.dmId === conversation.dmId) return;
+
     setSelectedConversation(conversation);
     setUnreadCounts((prev) => ({ ...prev, [conversation.dmId]: 0 }));
 

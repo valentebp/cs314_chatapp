@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useChat } from '../../context/ChatContext';
 
 /**
@@ -9,13 +9,21 @@ import { useChat } from '../../context/ChatContext';
 const MessageInput = () => {
   const { selectedConversation, sendMessage } = useChat();
   const [text, setText] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const isDisabled = !selectedConversation;
+  const textareaRef = useRef(null);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = text.trim();
     if (!trimmed || isDisabled) return;
-    sendMessage(trimmed);
     setText('');
+    setIsSending(true);
+    try {
+      await sendMessage(trimmed);
+    } finally {
+      setIsSending(false);
+      textareaRef.current?.focus();
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -28,8 +36,9 @@ const MessageInput = () => {
   return (
     <div className="message-input">
       <textarea
+        ref={textareaRef}
         className="message-input__field"
-        placeholder={isDisabled ? 'Select a conversation to start chatting' : 'Type a message...'}
+        placeholder={!selectedConversation ? 'Select a conversation to start chatting' : 'Type a message...'}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -43,7 +52,7 @@ const MessageInput = () => {
         disabled={isDisabled || !text.trim()}
         aria-label="Send message"
       >
-        Send
+        {isSending ? 'Sending...' : 'Send'}
       </button>
     </div>
   );

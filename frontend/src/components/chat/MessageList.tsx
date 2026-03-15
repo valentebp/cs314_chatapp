@@ -11,9 +11,15 @@ import ErrorMessage from '../shared/ErrorMessage';
 const MessageList = ({ messages, isLoading, error }) => {
   const { user } = useAuth();
   const bottomRef = useRef(null);
+  const prevLengthRef = useRef(0);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' });
+    // Use instant scroll when the conversation first loads (prev length was 0)
+    // so the list starts at the bottom with no visible animation.
+    // Use smooth scroll when a new message is appended.
+    const behavior = prevLengthRef.current === 0 ? 'instant' : 'smooth';
+    prevLengthRef.current = messages.length;
+    bottomRef.current?.scrollIntoView?.({ behavior });
   }, [messages]);
 
   if (isLoading) {
