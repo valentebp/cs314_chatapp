@@ -6,29 +6,31 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  // loading is true while we are checking the session on mount.
   const [loading, setLoading] = useState(true);
 
-  // On mount, try to restore an existing session from the server cookie.
+  // On mount, restore session from stored JWT token.
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     api
-      .get('/api/auth/userinfo')
+      .get('/api/auth/profile')
       .then((res) => {
         setUser(res.data);
-        // Reconnect socket if session is already active.
-        const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? import.meta.env?.VITE_API_URL ?? '';
-        if (socketUrl) socketService.connect(socketUrl);
+        _connectSocket();
       })
       .catch(() => {
-        // No active session — stay logged out.
+        localStorage.removeItem('token');
         setUser(null);
       })
       .finally(() => setLoading(false));
   }, []);
 
   const signup = async (data) => {
-    const res = await api.post('/api/auth/signup', data);
-    // Normalise: backend may return { user: {...} } or the user object directly.
+    const res = await api.post('/api/auth/register', data);
+    localStorage.setItem('token', res.data.token);
     const userData = res.data.user ?? res.data;
     setUser(userData);
     _connectSocket();
@@ -37,6 +39,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const res = await api.post('/api/auth/login', credentials);
+    localStorage.setItem('token', res.data.token);
     const userData = res.data.user ?? res.data;
     setUser(userData);
     _connectSocket();
@@ -47,26 +50,23 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/api/auth/logout');
     } finally {
+      localStorage.removeItem('token');
       setUser(null);
       socketService.disconnect();
     }
   };
 
   const updateProfile = async (profileData) => {
-    const res = await api.post('/api/auth/update-profile', profileData);
+    const res = await api.patch('/api/auth/profile', profileData);
     const userData = res.data.user ?? res.data;
     setUser(userData);
     return userData;
   };
 
-  /**
-   * Returns true when the user has completed their profile.
-   * Adjust this check to match what your backend considers a complete profile.
-   * Common check: displayName or firstName must be set.
-   */
+  // Profile is complete once firstName is set (required at registration).
   const isProfileComplete = (u = user) => {
     if (!u) return false;
-    return Boolean(u.displayName || u.firstName);
+    return Boolean(u.firstName);
   };
 
   const _connectSocket = () => {

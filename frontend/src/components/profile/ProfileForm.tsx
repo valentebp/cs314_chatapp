@@ -3,29 +3,22 @@ import { useAuth } from '../../context/AuthContext';
 import ErrorMessage from '../shared/ErrorMessage';
 import AvatarDisplay from './AvatarDisplay';
 
-/**
- * Form for viewing and editing the current user's profile.
- * onSaved() is called after a successful update.
- */
 const ProfileForm = ({ onSaved }) => {
   const { user, updateProfile } = useAuth();
 
   const [formData, setFormData] = useState({
-    displayName: '',
-    bio: '',
-    profilePic: '',
+    firstName: '',
+    lastName: '',
   });
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pre-populate the form with existing user data.
   useEffect(() => {
     if (user) {
       setFormData({
-        displayName: user.displayName || user.firstName || '',
-        bio: user.bio || '',
-        profilePic: user.profilePic || '',
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
       });
     }
   }, [user]);
@@ -42,8 +35,8 @@ const ProfileForm = ({ onSaved }) => {
     setError('');
     setSuccessMessage('');
 
-    if (!formData.displayName.trim()) {
-      setError('Display name is required.');
+    if (!formData.firstName.trim()) {
+      setError('First name is required.');
       return;
     }
 
@@ -60,12 +53,12 @@ const ProfileForm = ({ onSaved }) => {
     }
   };
 
-  const displayName = formData.displayName || user?.displayName || '';
+  const displayName = [formData.firstName, formData.lastName].filter(Boolean).join(' ');
 
   return (
     <form className="profile-form" onSubmit={handleSubmit} noValidate>
       <div className="profile-form__avatar">
-        <AvatarDisplay src={formData.profilePic} name={displayName} size="large" />
+        <AvatarDisplay src={null} name={displayName} size="large" />
       </div>
 
       <ErrorMessage message={error} />
@@ -77,15 +70,15 @@ const ProfileForm = ({ onSaved }) => {
       )}
 
       <div className="form-group">
-        <label htmlFor="displayName" className="form-label">
-          Display Name <span className="required">*</span>
+        <label htmlFor="firstName" className="form-label">
+          First Name <span className="required">*</span>
         </label>
         <input
-          id="displayName"
+          id="firstName"
           type="text"
-          name="displayName"
+          name="firstName"
           className="form-input"
-          value={formData.displayName}
+          value={formData.firstName}
           onChange={handleChange}
           maxLength={50}
           required
@@ -93,33 +86,17 @@ const ProfileForm = ({ onSaved }) => {
       </div>
 
       <div className="form-group">
-        <label htmlFor="bio" className="form-label">
-          Bio
-        </label>
-        <textarea
-          id="bio"
-          name="bio"
-          className="form-input form-input--textarea"
-          value={formData.bio}
-          onChange={handleChange}
-          maxLength={160}
-          rows={3}
-          placeholder="Tell people a little about yourself..."
-        />
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="profilePic" className="form-label">
-          Profile Picture URL
+        <label htmlFor="lastName" className="form-label">
+          Last Name
         </label>
         <input
-          id="profilePic"
-          type="url"
-          name="profilePic"
+          id="lastName"
+          type="text"
+          name="lastName"
           className="form-input"
-          value={formData.profilePic}
+          value={formData.lastName}
           onChange={handleChange}
-          placeholder="https://example.com/photo.jpg"
+          maxLength={50}
         />
       </div>
 
