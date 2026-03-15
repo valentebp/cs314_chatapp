@@ -14,8 +14,6 @@ const LoginForm = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear the error as soon as the user starts correcting their input.
-    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
