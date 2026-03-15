@@ -98,10 +98,11 @@ describe('RegisterForm', () => {
     await user.type(screen.getByLabelText(/^password$/i), 'password123');
     await user.type(screen.getByLabelText(/confirm password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
-    expect(await screen.findByText('Email already in use.')).toBeInTheDocument();
-    // Wait for the finally block's setIsSubmitting(false) to flush, avoiding act() warnings.
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /create account/i })).not.toBeDisabled()
-    );
+    // Wait for both setError and setIsSubmitting(false) to flush in the same
+    // waitFor pass, which keeps all state updates inside act() and avoids warnings.
+    await waitFor(() => {
+      expect(screen.getByText('Email already in use.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /create account/i })).not.toBeDisabled();
+    });
   });
 });
