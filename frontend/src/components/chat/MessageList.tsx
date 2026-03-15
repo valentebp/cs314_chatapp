@@ -46,7 +46,7 @@ const MessageList = ({ messages, isLoading, error }) => {
         <MessageBubble
           key={msg._id}
           message={msg}
-          isOwn={msg.senderId === user?._id || msg.senderId === 'optimistic'}
+          isOwn={msg.senderId?.toString() === user?._id?.toString()}
         />
       ))}
       <div ref={bottomRef} />
