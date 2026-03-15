@@ -49,7 +49,6 @@ const RegisterForm = () => {
     } catch (err) {
       const serverMessage = err.response?.data?.message;
       setError(serverMessage || 'Registration failed. Please try again.');
-    } finally {
       setIsSubmitting(false);
     }
   };
