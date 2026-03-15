@@ -52,9 +52,16 @@ export const ChatProvider = ({ children }) => {
     selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
 
-  // Always-current reference to the authenticated user for use inside callbacks.
+  // Always-current references for use inside the socket callback (avoids stale closures).
   const userRef = useRef(user);
   useEffect(() => { userRef.current = user; }, [user]);
+
+  const conversationsRef = useRef(conversations);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
+  // Updated whenever loadConversations is recreated so the socket handler always
+  // calls the latest version.
+  const loadConversationsRef = useRef(null);
 
   // Queue of socket echoes to ignore (messages we sent ourselves via HTTP first).
   const pendingEchoes = useRef<{ conversationId: string; content: string }[]>([]);
@@ -79,12 +86,33 @@ export const ChatProvider = ({ children }) => {
       setTimeout(() => {
         mapped.forEach((conv) => socketService.emit('join', conv.dmId));
       }, 500);
+      // Populate lastMessage previews in the background — one request per
+      // conversation, failures are silently ignored.
+      Promise.allSettled(
+        mapped.map(async (conv) => {
+          if (!conv.dmId) return;
+          const msgRes = await api.get(`/api/messages/${conv.dmId}`);
+          const msgs = Array.isArray(msgRes.data) ? msgRes.data : [];
+          if (msgs.length === 0) return;
+          const last = msgs[msgs.length - 1];
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.dmId === conv.dmId
+                ? { ...c, lastMessage: { content: last.content, timestamp: last.timestamp } }
+                : c
+            )
+          );
+        })
+      );
     } catch {
       setConversationsError('Failed to load conversations. Please refresh.');
     } finally {
       setIsLoadingConversations(false);
     }
   }, [user]);
+
+  // Keep the ref current so the socket handler always calls the latest version.
+  useEffect(() => { loadConversationsRef.current = loadConversations; }, [loadConversations]);
 
   useEffect(() => {
     if (user) {
@@ -111,6 +139,14 @@ export const ChatProvider = ({ children }) => {
       );
       if (echoIdx !== -1) {
         pendingEchoes.current.splice(echoIdx, 1);
+        return;
+      }
+
+      // If the conversation isn't in our list yet (e.g. someone started a new
+      // DM with us), reload the conversation list to pick it up.
+      const known = conversationsRef.current.some((c) => c.dmId === convId);
+      if (!known) {
+        loadConversationsRef.current?.();
         return;
       }
 
@@ -144,6 +180,14 @@ export const ChatProvider = ({ children }) => {
     return () => socketService.off('message', handleReceiveMessage);
   }, []);
 
+  const addConversation = useCallback((conv) => {
+    setConversations((prev) => {
+      if (prev.some((c) => c.dmId === conv.dmId)) return prev;
+      return [...prev, conv];
+    });
+    socketService.emit('join', conv.dmId);
+  }, []);
+
   const selectConversation = useCallback(async (conversation) => {
     setSelectedConversation(conversation);
     setUnreadCounts((prev) => ({ ...prev, [conversation.dmId]: 0 }));
@@ -156,7 +200,19 @@ export const ChatProvider = ({ children }) => {
     setMessages([]);
     try {
       const res = await api.get(`/api/messages/${conversation.dmId}`);
-      setMessages(Array.isArray(res.data) ? res.data : []);
+      const loaded = Array.isArray(res.data) ? res.data : [];
+      setMessages(loaded);
+      // Update the sidebar preview with the last message.
+      if (loaded.length > 0) {
+        const last = loaded[loaded.length - 1];
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.dmId === conversation.dmId
+              ? { ...c, lastMessage: { content: last.content, timestamp: last.timestamp } }
+              : c
+          )
+        );
+      }
     } catch {
       setMessagesError('Failed to load messages. Please try again.');
     } finally {
@@ -190,6 +246,14 @@ export const ChatProvider = ({ children }) => {
           m._id === optimistic._id
             ? { ...res.data, senderId: res.data.senderId?.toString?.() ?? currentUserId }
             : m
+        )
+      );
+      // Update the sidebar preview with the sent message.
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.dmId === selectedConversationRef.current?.dmId
+            ? { ...c, lastMessage: { content, timestamp: new Date().toISOString() } }
+            : c
         )
       );
       // Register an echo to suppress before the socket broadcast arrives.
@@ -237,6 +301,7 @@ export const ChatProvider = ({ children }) => {
         conversationsError,
         messagesError,
         loadConversations,
+        addConversation,
         selectConversation,
         sendMessage,
         deleteConversation,

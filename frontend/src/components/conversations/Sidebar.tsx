@@ -28,6 +28,13 @@ const Sidebar = () => {
 
   const displayName = user?.displayName || user?.firstName || 'Me';
 
+  // Sort: conversations with a recent message first, then alphabetically by name.
+  const sortedConversations = [...conversations].sort((a, b) => {
+    const ta = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : 0;
+    const tb = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : 0;
+    return tb - ta;
+  });
+
   return (
     <aside className="sidebar">
       {/* User header */}
@@ -64,12 +71,12 @@ const Sidebar = () => {
         </div>
       ) : (
         <ul className="sidebar__list">
-          {conversations.length === 0 ? (
+          {sortedConversations.length === 0 ? (
             <li className="sidebar__empty">
               No conversations yet. Search for someone to start chatting.
             </li>
           ) : (
-            conversations.map((conv) => (
+            sortedConversations.map((conv) => (
               <ConversationItem
                 key={conv.dmId}
                 conversation={conv}

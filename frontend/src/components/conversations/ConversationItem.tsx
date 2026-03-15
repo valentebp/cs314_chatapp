@@ -28,7 +28,7 @@ const ConversationItem = ({ conversation, isSelected, unreadCount, onClick }) =>
   const { contact, lastMessage } = conversation;
   const name = contact?.displayName || contact?.email || 'Unknown';
   const preview = lastMessage?.content || 'No messages yet';
-  const time = formatPreviewTime(lastMessage?.createdAt);
+  const time = formatPreviewTime(lastMessage?.timestamp);
   const hasUnread = unreadCount > 0;
 
   return (
