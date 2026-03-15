@@ -10,8 +10,8 @@
   --color-bg-input: #ffffff;
   --color-bg-header: #ffffff;
   --color-bg-card: #ffffff;
-  --color-accent: #128c7e;
-  --color-accent-hover: #0e7268;
+  --color-accent: #6c8d22;
+  --color-accent-hover: #587a1a;
   --color-danger: #e53e3e;
   --color-danger-hover: #c53030;
   --color-text-primary: #111b21;
@@ -54,7 +54,8 @@
   --color-success-text: #4caf50;
 }
 
-[data-theme="dark"] .form-input {
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .message-input__field {
   background: #2a3942;
   color: var(--color-text-primary);
 }
