@@ -18,22 +18,39 @@ const mapConversation = (conv, currentUserId) => {
   const other = !isGroup
     ? conv.participants?.find((p) => p._id?.toString() !== currentUserId?.toString())
     : null;
+
+  let contact = null;
+  if (!isGroup) {
+    if (other) {
+      const displayName =
+        [other.firstName, other.lastName].filter(Boolean).join(' ') ||
+        other.email ||
+        'Unknown';
+      contact = { _id: other._id, displayName, email: other.email };
+      // Cache so we can still show the name if this participant later leaves.
+      try {
+        localStorage.setItem(
+          `chatapp_contact_${conv._id}`,
+          JSON.stringify(contact)
+        );
+      } catch { /* ignore quota errors */ }
+    } else {
+      // The other participant is no longer in participants (they left).
+      // Fall back to the last cached contact info if available.
+      try {
+        const cached = localStorage.getItem(`chatapp_contact_${conv._id}`);
+        contact = cached ? JSON.parse(cached) : { _id: null, displayName: 'Unknown', email: '' };
+      } catch {
+        contact = { _id: null, displayName: 'Unknown', email: '' };
+      }
+    }
+  }
+
   return {
     dmId: conv._id,
     type: conv.type ?? 'dm',
     creatorId: conv.creatorId,
-    contact: !isGroup
-      ? other
-        ? {
-            _id: other._id,
-            displayName:
-              [other.firstName, other.lastName].filter(Boolean).join(' ') ||
-              other.email ||
-              'Unknown',
-            email: other.email,
-          }
-        : { _id: null, displayName: 'Unknown', email: '' }
-      : null,
+    contact,
     groupName: isGroup ? (conv.name || 'Group Chat') : null,
     members: (conv.participants ?? []).map((p) => ({
       _id: p._id,
