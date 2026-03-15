@@ -17,6 +17,7 @@ const baseChat = {
   isLoadingMessages: false,
   messagesError: null,
   deleteConversation: jest.fn(),
+  leaveConversation: jest.fn(),
 };
 
 describe('ChatWindow', () => {
@@ -33,6 +34,7 @@ describe('ChatWindow', () => {
       ...baseChat,
       selectedConversation: {
         dmId: 'dm1',
+        creatorId: 'u1',
         contact: { _id: 'u2', displayName: 'Alice', profilePic: null },
       },
     });
@@ -43,7 +45,7 @@ describe('ChatWindow', () => {
   it('shows a loading spinner when messages are loading', () => {
     (useChat as jest.Mock).mockReturnValue({
       ...baseChat,
-      selectedConversation: { dmId: 'dm1', contact: { _id: 'u2', displayName: 'Alice' } },
+      selectedConversation: { dmId: 'dm1', creatorId: 'u1', contact: { _id: 'u2', displayName: 'Alice' } },
       isLoadingMessages: true,
     });
     render(<ChatWindow />);
@@ -53,7 +55,7 @@ describe('ChatWindow', () => {
   it('renders a message from the messages array', () => {
     (useChat as jest.Mock).mockReturnValue({
       ...baseChat,
-      selectedConversation: { dmId: 'dm1', contact: { _id: 'u2', displayName: 'Alice' } },
+      selectedConversation: { dmId: 'dm1', creatorId: 'u1', contact: { _id: 'u2', displayName: 'Alice' } },
       messages: [
         {
           _id: 'msg1',
@@ -70,9 +72,18 @@ describe('ChatWindow', () => {
   it('disables the Delete button when dmId is null (new conversation)', () => {
     (useChat as jest.Mock).mockReturnValue({
       ...baseChat,
-      selectedConversation: { dmId: null, contact: { _id: 'u2', displayName: 'Alice' } },
+      selectedConversation: { dmId: null, creatorId: 'u1', contact: { _id: 'u2', displayName: 'Alice' } },
     });
     render(<ChatWindow />);
     expect(screen.getByRole('button', { name: /delete/i })).toBeDisabled();
+  });
+
+  it('shows Leave button when user is not the creator', () => {
+    (useChat as jest.Mock).mockReturnValue({
+      ...baseChat,
+      selectedConversation: { dmId: 'dm1', creatorId: 'u2', contact: { _id: 'u2', displayName: 'Alice' } },
+    });
+    render(<ChatWindow />);
+    expect(screen.getByRole('button', { name: /leave/i })).toBeInTheDocument();
   });
 });
