@@ -32,6 +32,38 @@
 }
 
 /* ============================================================
+   Dark Mode
+   ============================================================ */
+[data-theme="dark"] {
+  --color-bg-app: #111b21;
+  --color-bg-sidebar: #1f2c34;
+  --color-bg-chat: #0b141a;
+  --color-bg-msg-sent: #005c4b;
+  --color-bg-msg-recv: #1f2c34;
+  --color-bg-input: #2a3942;
+  --color-bg-header: #1f2c34;
+  --color-bg-card: #1f2c34;
+  --color-text-primary: #e9edef;
+  --color-text-secondary: #8696a0;
+  --color-text-muted: #667781;
+  --color-border: #2a3942;
+  --color-error-bg: #3d1c1c;
+  --color-error-text: #ff6b6b;
+  --color-error-border: #c53030;
+  --color-success-bg: #1a3d2b;
+  --color-success-text: #4caf50;
+}
+
+[data-theme="dark"] .form-input {
+  background: #2a3942;
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .conversation-item--selected {
+  background: #2a3942;
+}
+
+/* ============================================================
    Reset & Base
    ============================================================ */
 *,
@@ -891,4 +923,110 @@ a {
   .message-bubble__content {
     max-width: 88%;
   }
+}
+
+/* ============================================================
+   Settings Page
+   ============================================================ */
+.settings-page {
+  min-height: 100vh;
+  background: var(--color-bg-app);
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.settings-panel {
+  background: var(--color-bg-card);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 480px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: fit-content;
+}
+
+.settings-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+}
+
+.settings-panel__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-section__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+
+/* ============================================================
+   Toggle Switch
+   ============================================================ */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch__slider {
+  position: absolute;
+  inset: 0;
+  background: var(--color-border);
+  border-radius: 999px;
+  transition: background var(--transition);
+}
+
+.toggle-switch__slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform var(--transition);
+}
+
+.toggle-switch input:checked + .toggle-switch__slider {
+  background: var(--color-accent);
+}
+
+.toggle-switch input:checked + .toggle-switch__slider::before {
+  transform: translateX(20px);
 }
