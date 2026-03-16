@@ -240,15 +240,21 @@ export const ChatProvider = ({ children }) => {
       }
 
       if (selectedConversationRef.current?.dmId === convId) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            _id: `socket_${Date.now()}`,
-            senderId: message.senderId ?? 'other',
-            content: message.content,
-            timestamp: new Date().toISOString(),
-          },
-        ]);
+        setMessages((prev) => {
+          // Deduplicate by _id if the message includes one from the server.
+          if (message._id && prev.some((m) => m._id === message._id)) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              _id: message._id ?? `socket_${Date.now()}`,
+              senderId: message.senderId ?? 'other',
+              content: message.content,
+              timestamp: message.timestamp ?? new Date().toISOString(),
+            },
+          ];
+        });
       } else {
         setUnreadCounts((prev) => ({
           ...prev,
@@ -402,9 +408,11 @@ export const ChatProvider = ({ children }) => {
       // Notify other participants via socket.
       // Include senderId so the backend can exclude the sender from the broadcast.
       socketService.emit('sendMessage', {
+        _id: res.data._id,
         conversationId: selectedConversationRef.current.dmId,
         content,
         senderId: userRef.current?._id,
+        timestamp: res.data.timestamp,
       });
     } catch {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
@@ -441,11 +449,12 @@ export const ChatProvider = ({ children }) => {
       if (selectedConversationRef.current?.dmId === dmId) {
         setMessages((prev) => [...prev, { ...msgRes.data, senderId: msgRes.data.senderId?.toString?.() ?? userRef.current?._id }]);
       }
-      pendingEchoes.current.push({ conversationId: dmId, content: joinText });
       socketService.emit('sendMessage', {
+        _id: msgRes.data._id,
         conversationId: dmId,
         content: joinText,
         senderId: userRef.current?._id,
+        timestamp: msgRes.data.timestamp,
       });
     } catch { /* silently ignore */ }
   }, []);
@@ -463,8 +472,14 @@ export const ChatProvider = ({ children }) => {
 
     // Post the leaving message so all participants see it (persisted + real-time).
     try {
-      await api.post('/api/messages', { conversationId: dmId, content: leaveText });
-      socketService.emit('sendMessage', { conversationId: dmId, content: leaveText, senderId: userRef.current?._id });
+      const msgRes = await api.post('/api/messages', { conversationId: dmId, content: leaveText });
+      socketService.emit('sendMessage', {
+        _id: msgRes.data._id,
+        conversationId: dmId,
+        content: leaveText,
+        senderId: userRef.current?._id,
+        timestamp: msgRes.data.timestamp,
+      });
     } catch { /* silently ignore — leave proceeds regardless */ }
 
     await api.post(`/api/conversations/${dmId}/leave`);
@@ -481,8 +496,14 @@ export const ChatProvider = ({ children }) => {
 
     // Post the kick message so all participants see it (persisted + real-time).
     try {
-      await api.post('/api/messages', { conversationId: dmId, content: kickText });
-      socketService.emit('sendMessage', { conversationId: dmId, content: kickText, senderId: currentUserId });
+      const msgRes = await api.post('/api/messages', { conversationId: dmId, content: kickText });
+      socketService.emit('sendMessage', {
+        _id: msgRes.data._id,
+        conversationId: dmId,
+        content: kickText,
+        senderId: currentUserId,
+        timestamp: msgRes.data.timestamp,
+      });
       // Tell the server to notify the kicked user.
       socketService.emit('kickMember', { conversationId: dmId, memberId });
     } catch { /* silently ignore */ }
