@@ -9,6 +9,8 @@ jest.mock('../src/context/AuthContext', () => ({
   useAuth: () => ({ user: { _id: 'u1', displayName: 'Me' } }),
 }));
 
+jest.mock('../src/components/conversations/AddMemberModal', () => () => null);
+
 import { useChat } from '../src/context/ChatContext';
 
 const baseChat = {
@@ -16,8 +18,23 @@ const baseChat = {
   messages: [],
   isLoadingMessages: false,
   messagesError: null,
-  deleteConversation: jest.fn(),
   leaveConversation: jest.fn(),
+};
+
+const dmConversation = {
+  dmId: 'dm1',
+  type: 'dm',
+  contact: { _id: 'u2', displayName: 'Alice', profilePic: null },
+};
+
+const groupConversation = {
+  dmId: 'grp1',
+  type: 'group',
+  groupName: 'Study Group',
+  members: [
+    { _id: 'u1', displayName: 'Me' },
+    { _id: 'u2', displayName: 'Alice' },
+  ],
 };
 
 describe('ChatWindow', () => {
@@ -29,23 +46,28 @@ describe('ChatWindow', () => {
     expect(screen.getByText(/select a conversation/i)).toBeInTheDocument();
   });
 
-  it('shows the contact name in the header when a conversation is selected', () => {
-    (useChat as jest.Mock).mockReturnValue({
-      ...baseChat,
-      selectedConversation: {
-        dmId: 'dm1',
-        creatorId: 'u1',
-        contact: { _id: 'u2', displayName: 'Alice', profilePic: null },
-      },
-    });
+  it('shows the contact name in the header for a DM', () => {
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: dmConversation });
     render(<ChatWindow />);
     expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('shows the group name in the header for a group', () => {
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: groupConversation });
+    render(<ChatWindow />);
+    expect(screen.getByText('Study Group')).toBeInTheDocument();
+  });
+
+  it('shows member count for group conversations', () => {
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: groupConversation });
+    render(<ChatWindow />);
+    expect(screen.getByText(/2 members/i)).toBeInTheDocument();
   });
 
   it('shows a loading spinner when messages are loading', () => {
     (useChat as jest.Mock).mockReturnValue({
       ...baseChat,
-      selectedConversation: { dmId: 'dm1', creatorId: 'u1', contact: { _id: 'u2', displayName: 'Alice' } },
+      selectedConversation: dmConversation,
       isLoadingMessages: true,
     });
     render(<ChatWindow />);
@@ -55,35 +77,37 @@ describe('ChatWindow', () => {
   it('renders a message from the messages array', () => {
     (useChat as jest.Mock).mockReturnValue({
       ...baseChat,
-      selectedConversation: { dmId: 'dm1', creatorId: 'u1', contact: { _id: 'u2', displayName: 'Alice' } },
-      messages: [
-        {
-          _id: 'msg1',
-          senderId: 'u2',
-          content: 'Hi there!',
-          createdAt: new Date().toISOString(),
-        },
-      ],
+      selectedConversation: dmConversation,
+      messages: [{ _id: 'msg1', senderId: 'u2', content: 'Hi there!', timestamp: new Date().toISOString() }],
     });
     render(<ChatWindow />);
     expect(screen.getByText('Hi there!')).toBeInTheDocument();
   });
 
-  it('disables the Delete button when dmId is null (new conversation)', () => {
-    (useChat as jest.Mock).mockReturnValue({
-      ...baseChat,
-      selectedConversation: { dmId: null, creatorId: 'u1', contact: { _id: 'u2', displayName: 'Alice' } },
-    });
-    render(<ChatWindow />);
-    expect(screen.getByRole('button', { name: /delete/i })).toBeDisabled();
-  });
-
-  it('shows Leave button when user is not the creator', () => {
-    (useChat as jest.Mock).mockReturnValue({
-      ...baseChat,
-      selectedConversation: { dmId: 'dm1', creatorId: 'u2', contact: { _id: 'u2', displayName: 'Alice' } },
-    });
+  it('Leave button is always shown when a conversation is selected', () => {
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: dmConversation });
     render(<ChatWindow />);
     expect(screen.getByRole('button', { name: /leave/i })).toBeInTheDocument();
+  });
+
+  it('Leave button is disabled when dmId is null', () => {
+    (useChat as jest.Mock).mockReturnValue({
+      ...baseChat,
+      selectedConversation: { ...dmConversation, dmId: null },
+    });
+    render(<ChatWindow />);
+    expect(screen.getByRole('button', { name: /leave/i })).toBeDisabled();
+  });
+
+  it('shows Add button for group conversations', () => {
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: groupConversation });
+    render(<ChatWindow />);
+    expect(screen.getByRole('button', { name: /add member/i })).toBeInTheDocument();
+  });
+
+  it('does not show Add button for DM conversations', () => {
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: dmConversation });
+    render(<ChatWindow />);
+    expect(screen.queryByRole('button', { name: /add member/i })).not.toBeInTheDocument();
   });
 });

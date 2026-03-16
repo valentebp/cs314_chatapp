@@ -5,7 +5,7 @@ const baseMessage = {
   _id: 'msg1',
   senderId: 'user-abc',
   content: 'Hello there!',
-  createdAt: '2025-01-15T14:30:00.000Z',
+  timestamp: '2025-01-15T14:30:00.000Z',
 };
 
 describe('MessageBubble', () => {
@@ -38,5 +38,50 @@ describe('MessageBubble', () => {
   it('does not show pending indicator for delivered messages', () => {
     const { container } = render(<MessageBubble message={baseMessage} isOwn={true} />);
     expect(container.querySelector('.message-bubble__pending')).not.toBeInTheDocument();
+  });
+
+  it('adds block-start class when isFirstInBlock is true', () => {
+    const { container } = render(
+      <MessageBubble message={baseMessage} isOwn={false} isFirstInBlock={true} />
+    );
+    expect(container.firstChild).toHaveClass('message-bubble--block-start');
+  });
+
+  it('does not add block-start class when isFirstInBlock is false', () => {
+    const { container } = render(
+      <MessageBubble message={baseMessage} isOwn={false} isFirstInBlock={false} />
+    );
+    expect(container.firstChild).not.toHaveClass('message-bubble--block-start');
+  });
+
+  it('renders avatar when senderName is provided and showAvatar is true', () => {
+    const { container } = render(
+      <MessageBubble message={baseMessage} isOwn={false} senderName="Alice" showAvatar={true} />
+    );
+    expect(container.querySelector('.message-bubble__avatar')).toBeInTheDocument();
+    expect(container.querySelector('.message-bubble__avatar-spacer')).not.toBeInTheDocument();
+  });
+
+  it('renders a spacer (not avatar) when senderName is provided and showAvatar is false', () => {
+    const { container } = render(
+      <MessageBubble message={baseMessage} isOwn={false} senderName="Alice" showAvatar={false} />
+    );
+    expect(container.querySelector('.message-bubble__avatar-spacer')).toBeInTheDocument();
+    expect(container.querySelector('.message-bubble__avatar')).not.toBeInTheDocument();
+  });
+
+  it('renders no avatar slot when senderName is null (DM or own message)', () => {
+    const { container } = render(
+      <MessageBubble message={baseMessage} isOwn={false} senderName={null} />
+    );
+    expect(container.querySelector('.message-bubble__avatar')).not.toBeInTheDocument();
+    expect(container.querySelector('.message-bubble__avatar-spacer')).not.toBeInTheDocument();
+  });
+
+  it('renders no avatar slot for own messages even when senderName is provided', () => {
+    const { container } = render(
+      <MessageBubble message={baseMessage} isOwn={true} senderName="Me" showAvatar={true} />
+    );
+    expect(container.querySelector('.message-bubble__avatar')).not.toBeInTheDocument();
   });
 });
