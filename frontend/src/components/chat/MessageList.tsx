@@ -55,7 +55,7 @@ const MessageList = ({ messages, isLoading, error, isGroup = false, members = []
 
   return (
     <div className="message-list">
-      {messages.map((msg) => {
+      {messages.map((msg, i) => {
         if (isLeaveNotice(msg.content)) {
           return (
             <div key={msg._id} className="message-system-notice">
@@ -64,12 +64,26 @@ const MessageList = ({ messages, isLoading, error, isGroup = false, members = []
           );
         }
         const isOwn = msg.senderId?.toString() === user?._id?.toString();
+        const thisSender = msg.senderId?.toString();
+
+        // Ignore system notices when detecting consecutive runs.
+        const prevMsg = messages.slice(0, i).reverse().find((m) => !isLeaveNotice(m.content));
+        const nextMsg = messages.slice(i + 1).find((m) => !isLeaveNotice(m.content));
+        const isFirstInBlock = prevMsg?.senderId?.toString() !== thisSender;
+        const isLastInBlock = nextMsg?.senderId?.toString() !== thisSender;
+
+        // In group chats, show the avatar only on the last bubble of a run.
+        // Pass senderName=null for own/DM messages; non-null signals the avatar slot.
+        const senderName = isGroup && !isOwn ? getSenderName(msg.senderId) : null;
+
         return (
           <MessageBubble
             key={msg._id}
             message={msg}
             isOwn={isOwn}
-            senderName={isGroup && !isOwn ? getSenderName(msg.senderId) : null}
+            senderName={senderName}
+            showAvatar={isLastInBlock}
+            isFirstInBlock={isFirstInBlock && i > 0}
           />
         );
       })}

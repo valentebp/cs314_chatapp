@@ -840,6 +840,16 @@ a {
   flex-shrink: 0;
 }
 
+.message-bubble__avatar-spacer {
+  width: 36px;
+  margin-right: 0.4rem;
+  flex-shrink: 0;
+}
+
+.message-bubble--block-start {
+  margin-top: 0.6rem;
+}
+
 /* ============================================================
    Message Input
    ============================================================ */

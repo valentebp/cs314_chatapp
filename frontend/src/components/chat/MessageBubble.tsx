@@ -13,13 +13,13 @@ const formatTime = (timestamp) => {
  *   isOwn      - true if the current user sent this message
  *   senderName - display name used for the avatar initial (group chats only, non-own messages)
  */
-const MessageBubble = ({ message, isOwn, senderName = null }) => {
+const MessageBubble = ({ message, isOwn, senderName = null, showAvatar = true, isFirstInBlock = false }) => {
   return (
-    <div className={`message-bubble${isOwn ? ' message-bubble--own' : ' message-bubble--other'}`}>
+    <div className={`message-bubble${isOwn ? ' message-bubble--own' : ' message-bubble--other'}${isFirstInBlock ? ' message-bubble--block-start' : ''}`}>
       {!isOwn && senderName !== null && (
-        <div className="message-bubble__avatar">
-          <AvatarDisplay src={null} name={senderName} size="small" />
-        </div>
+        showAvatar
+          ? <div className="message-bubble__avatar"><AvatarDisplay src={null} name={senderName} size="small" /></div>
+          : <div className="message-bubble__avatar-spacer" />
       )}
       <div className="message-bubble__content">
         <p className="message-bubble__text">{message.content}</p>
