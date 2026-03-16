@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChat } from '../../context/ChatContext';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import AvatarDisplay from '../profile/AvatarDisplay';
 import ErrorMessage from '../shared/ErrorMessage';
 import AddMemberModal from '../conversations/AddMemberModal';
+import MemberListModal from '../conversations/MemberListModal';
 
 const ChatWindow = () => {
   const {
@@ -17,6 +18,14 @@ const ChatWindow = () => {
   const [actionError, setActionError] = useState('');
   const [isActing, setIsActing] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showMemberList, setShowMemberList] = useState(false);
+
+  useEffect(() => {
+    setIsActing(false);
+    setActionError('');
+    setShowAddMember(false);
+    setShowMemberList(false);
+  }, [selectedConversation?.dmId]);
 
   if (!selectedConversation) {
     return (
@@ -42,6 +51,7 @@ const ChatWindow = () => {
     setActionError('');
     try {
       await leaveConversation(selectedConversation.dmId);
+      setIsActing(false);
     } catch (err) {
       const serverMessage = err.response?.data?.message;
       setActionError(serverMessage || 'Failed to leave conversation.');
@@ -55,7 +65,17 @@ const ChatWindow = () => {
       <div className="chat-window__header">
         <AvatarDisplay src={!isGroup ? contact?.profilePic : undefined} name={contactName} size="medium" />
         <div className="chat-window__header-info">
-          <span className="chat-window__contact-name">{contactName}</span>
+          {isGroup ? (
+            <button
+              className="chat-window__contact-name chat-window__contact-name--clickable"
+              onClick={() => setShowMemberList(true)}
+              aria-label="View group members"
+            >
+              {contactName}
+            </button>
+          ) : (
+            <span className="chat-window__contact-name">{contactName}</span>
+          )}
           {memberCount !== null && (
             <span className="chat-window__member-count">{memberCount} members</span>
           )}
@@ -100,6 +120,18 @@ const ChatWindow = () => {
             <AddMemberModal
               conversation={selectedConversation}
               onClose={() => setShowAddMember(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Member list modal */}
+      {showMemberList && (
+        <div className="modal-overlay" onClick={() => setShowMemberList(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <MemberListModal
+              conversation={selectedConversation}
+              onClose={() => setShowMemberList(false)}
             />
           </div>
         </div>

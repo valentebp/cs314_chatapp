@@ -5,13 +5,24 @@ import Message from '../models/Message';
 export const createConversation = async (req: Request, res: Response) => {
   try {
     const { type, name, participants } = req.body;
+    const allParticipants = [...participants, req.user!._id];
+
+    if (type === 'dm' && allParticipants.length === 2) {
+      const existing = await Conversation.findOne({
+        type: 'dm',
+        participants: { $all: allParticipants, $size: 2 },
+      }).populate('participants', 'firstName lastName email');
+      if (existing) return res.status(200).send(existing);
+    }
+
     const conversation = new Conversation({
       type,
       name,
-      participants: [...participants, req.user!._id],
+      participants: allParticipants,
       creatorId: req.user!._id
     });
     await conversation.save();
+    await conversation.populate('participants', 'firstName lastName email');
     res.status(201).send(conversation);
   } catch (error) {
     res.status(400).send(error);
@@ -82,12 +93,22 @@ export const leaveConversation = async (req: Request, res: Response) => {
   try {
     const conversation = await Conversation.findOneAndUpdate(
       { _id: req.params.id, participants: req.user!._id },
-      { $pull: { participants: req.user!._id } },
+      { 
+        $pull: { participants: req.user!._id },
+        $addToSet: { leftUsers: req.user!._id }
+      },
       { new: true }
-    );
+    ).populate('participants', 'firstName lastName email');
+
     if (!conversation) {
       return res.status(404).send();
     }
+
+    if (conversation.participants.length === 0) {
+      await Conversation.findByIdAndDelete(req.params.id);
+      await Message.deleteMany({ conversationId: req.params.id });
+    }
+
     res.send(conversation);
   } catch (error) {
     res.status(400).send(error);

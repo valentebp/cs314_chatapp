@@ -21,3 +21,15 @@ export const searchUsers = async (req: Request, res: Response) => {
     res.status(500).send(error);
   }
 };
+
+export const getUserById = async (req: Request, res: Response) => {
+  try {
+    const user = await User.findById(req.params.id).select('firstName lastName email _id');
+    if (!user) {
+      return res.status(404).send({ error: 'User not found' });
+    }
+    res.send(user);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+};

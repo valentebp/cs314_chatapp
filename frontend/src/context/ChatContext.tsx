@@ -75,6 +75,7 @@ export const ChatProvider = ({ children }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [conversationsError, setConversationsError] = useState(null);
   const [messagesError, setMessagesError] = useState(null);
+  const [socketError, setSocketError] = useState(null);
 
   const selectedConversationRef = useRef(null);
   useEffect(() => {
@@ -91,9 +92,6 @@ export const ChatProvider = ({ children }) => {
   // Updated whenever loadConversations is recreated so the socket handler always
   // calls the latest version.
   const loadConversationsRef = useRef(null);
-
-  // Queue of socket echoes to ignore (messages we sent ourselves via HTTP first).
-  const pendingEchoes = useRef<{ conversationId: string; content: string }[]>([]);
 
   const loadConversations = useCallback(async () => {
     setIsLoadingConversations(true);
@@ -159,6 +157,8 @@ export const ChatProvider = ({ children }) => {
   useEffect(() => {
     if (user) {
       loadConversations();
+      // Register with the socket server to receive direct messages (like 'kicked')
+      socketService.emit('register', user._id);
     } else {
       setConversations([]);
       setSelectedConversation(null);
@@ -231,17 +231,6 @@ export const ChatProvider = ({ children }) => {
     const handleReceiveMessage = (message) => {
       const convId = message.conversationId;
 
-      // If we sent this message ourselves, we already have it from the HTTP
-      // response. The backend broadcasts to all room members including the
-      // sender, so consume the echo and skip adding a duplicate.
-      const echoIdx = pendingEchoes.current.findIndex(
-        (e) => e.conversationId === convId && e.content === message.content
-      );
-      if (echoIdx !== -1) {
-        pendingEchoes.current.splice(echoIdx, 1);
-        return;
-      }
-
       // If the conversation isn't in our list yet (e.g. someone started a new
       // DM with us), reload the conversation list to pick it up.
       const known = conversationsRef.current.some((c) => c.dmId === convId);
@@ -292,8 +281,39 @@ export const ChatProvider = ({ children }) => {
       }
     };
 
+    const handleKicked = (data) => {
+      const { conversationId } = data;
+      setConversations((prev) => prev.filter((c) => c.dmId !== conversationId));
+      if (selectedConversationRef.current?.dmId === conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+      // Leave the socket room to stop receiving further messages.
+      socketService.emit('leave', conversationId);
+    };
+
     socketService.on('message', handleReceiveMessage);
-    return () => socketService.off('message', handleReceiveMessage);
+    socketService.on('kicked', handleKicked);
+
+    socketService.on('connect_error', () => {
+      setSocketError('Real-time connection lost. Trying to reconnect...');
+    });
+
+    socketService.on('connect', () => {
+      setSocketError(null);
+      // Re-register and re-join rooms on reconnection
+      if (userRef.current) {
+        socketService.emit('register', userRef.current._id);
+        conversationsRef.current.forEach((c) => socketService.emit('join', c.dmId));
+      }
+    });
+
+    return () => {
+      socketService.off('message', handleReceiveMessage);
+      socketService.off('kicked', handleKicked);
+      socketService.off('connect_error');
+      socketService.off('connect');
+    };
   }, []);
 
   const addConversation = useCallback((conv) => {
@@ -379,14 +399,8 @@ export const ChatProvider = ({ children }) => {
       );
       // Mark as read for the sender so their own message doesn't show as unread on reload.
       localStorage.setItem(`chatapp_lastRead_${selectedConversationRef.current.dmId}`, new Date().toISOString());
-      // Register an echo to suppress before the socket broadcast arrives.
-      pendingEchoes.current.push({
-        conversationId: selectedConversationRef.current.dmId,
-        content,
-      });
       // Notify other participants via socket.
-      // Include senderId so the backend re-broadcasts it and receivers can
-      // resolve the sender name without a page refresh.
+      // Include senderId so the backend can exclude the sender from the broadcast.
       socketService.emit('sendMessage', {
         conversationId: selectedConversationRef.current.dmId,
         content,
@@ -461,6 +475,34 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
+  const kickMember = useCallback(async (dmId, memberId, memberName) => {
+    const currentUserId = userRef.current?._id;
+    const kickText = `${memberName} has been removed from the group.`;
+
+    // Post the kick message so all participants see it (persisted + real-time).
+    try {
+      await api.post('/api/messages', { conversationId: dmId, content: kickText });
+      socketService.emit('sendMessage', { conversationId: dmId, content: kickText, senderId: currentUserId });
+      // Tell the server to notify the kicked user.
+      socketService.emit('kickMember', { conversationId: dmId, memberId });
+    } catch { /* silently ignore */ }
+
+    // Use data: { userId } for DELETE request body in axios
+    await api.delete(`/api/conversations/${dmId}/participants`, { data: { userId: memberId } });
+
+    const removeMember = (members) =>
+      (members ?? []).filter((m) => m._id?.toString() !== memberId?.toString());
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.dmId === dmId ? { ...c, members: removeMember(c.members) } : c
+      )
+    );
+    setSelectedConversation((prev) =>
+      prev?.dmId === dmId ? { ...prev, members: removeMember(prev.members) } : prev
+    );
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -479,6 +521,8 @@ export const ChatProvider = ({ children }) => {
         addMember,
         deleteConversation,
         leaveConversation,
+        kickMember,
+        socketError,
       }}
     >
       {children}

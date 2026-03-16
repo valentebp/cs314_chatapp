@@ -5,6 +5,7 @@ export interface IConversation extends Document {
   name?: string;
   creatorId: mongoose.Types.ObjectId;
   participants: mongoose.Types.ObjectId[];
+  leftUsers: mongoose.Types.ObjectId[];
   mutedUsers: mongoose.Types.ObjectId[];
   createdAt: Date;
 }
@@ -14,6 +15,7 @@ const ConversationSchema: Schema = new Schema({
   name: { type: String },
   creatorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   participants: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  leftUsers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   mutedUsers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   createdAt: { type: Date, default: Date.now }
 });

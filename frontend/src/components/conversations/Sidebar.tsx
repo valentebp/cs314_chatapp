@@ -17,6 +17,7 @@ const Sidebar = () => {
     unreadCounts,
     isLoadingConversations,
     conversationsError,
+    socketError,
     selectConversation,
   } = useChat();
   const navigate = useNavigate();
@@ -66,6 +67,7 @@ const Sidebar = () => {
       </div>
 
       <ErrorMessage message={conversationsError} />
+      <ErrorMessage message={socketError} />
 
       {/* Conversation list */}
       {isLoadingConversations ? (

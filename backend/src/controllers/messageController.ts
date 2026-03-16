@@ -25,13 +25,25 @@ export const getMessages = async (req: Request, res: Response) => {
 export const sendMessage = async (req: Request, res: Response) => {
   try {
     const { conversationId, content } = req.body;
+    
+    // Find the conversation and ensure the sender is a current participant
     const conversation = await Conversation.findOne({
       _id: conversationId,
       participants: req.user!._id
     });
 
     if (!conversation) {
-      return res.status(404).send({ error: 'Conversation not found' });
+      return res.status(404).send({ error: 'Conversation not found or you are not a participant' });
+    }
+
+    // Re-add any users who left back into participants
+    if (conversation.leftUsers && conversation.leftUsers.length > 0) {
+      await Conversation.findByIdAndUpdate(conversationId, {
+        $addToSet: { participants: { $each: conversation.leftUsers } },
+        $set: { leftUsers: [] },
+      });
+      // Optionally populate here too if the response is expected to have updated participants
+      // though sendMessage usually returns the message object.
     }
 
     const message = new Message({

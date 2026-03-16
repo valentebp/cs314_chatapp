@@ -10,6 +10,8 @@ let token: string;
 let userId: string;
 let otherUserId: string;
 
+let otherToken: string;
+
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
@@ -25,14 +27,14 @@ beforeAll(async () => {
   userId = userRes.body.user._id;
 
   // Create another user to talk to
-  const otherUser = new User({
+  const otherUserRes = await request(app).post('/api/auth/register').send({
     email: 'worker@example.com',
-    passwordHash: 'hashed',
+    password: 'password123',
     firstName: 'The',
     lastName: 'Worker'
   });
-  await otherUser.save();
-  otherUserId = otherUser._id.toString();
+  otherToken = otherUserRes.body.token;
+  otherUserId = otherUserRes.body.user._id;
 });
 
 afterAll(async () => {
@@ -54,8 +56,33 @@ describe('Conversation Endpoints', () => {
       });
     expect(res.statusCode).toEqual(201);
     expect(res.body.name).toEqual('Work Chat');
-    expect(res.body.participants).toContain(otherUserId);
+    expect(res.body.participants.some((p: any) => p._id === otherUserId)).toBe(true);
     conversationId = res.body._id;
+  });
+
+  it('should create a new DM conversation', async () => {
+    const res = await request(app)
+      .post('/api/conversations')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        type: 'dm',
+        participants: [otherUserId]
+      });
+    expect(res.statusCode).toEqual(201);
+    expect(res.body.type).toEqual('dm');
+    expect(res.body.participants.length).toEqual(2);
+  });
+
+  it('should return existing DM conversation if it already exists', async () => {
+    const res = await request(app)
+      .post('/api/conversations')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        type: 'dm',
+        participants: [otherUserId]
+      });
+    expect(res.statusCode).toEqual(200);
+    expect(res.body.type).toEqual('dm');
   });
 
   it('should fetch all conversations for the user', async () => {
@@ -74,21 +101,43 @@ describe('Conversation Endpoints', () => {
     expect(res.body.mutedUsers).toContain(userId);
   });
 
-  it('should add a participant to a group', async () => {
-    const thirdUser = new User({
-      email: 'intern@example.com',
-      passwordHash: 'hashed',
-      firstName: 'The',
-      lastName: 'Intern'
-    });
-    await thirdUser.save();
-
+  it('should leave a conversation', async () => {
     const res = await request(app)
-      .post(`/api/conversations/${conversationId}/participants`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ userId: thirdUser._id });
-    
+      .post(`/api/conversations/${conversationId}/leave`)
+      .set('Authorization', `Bearer ${token}`);
     expect(res.statusCode).toEqual(200);
-    expect(res.body.participants).toContain(thirdUser._id.toString());
+    expect(res.body.participants.some((p: any) => p === userId)).toBe(false);
+    expect(res.body.leftUsers).toContain(userId);
+  });
+
+  it('should re-add user when a new message is sent', async () => {
+    // Current state: 'Boss' (userId) has left 'Work Chat' (conversationId)
+    // 'Worker' (otherUserId) sends a message to re-add 'Boss'
+    
+    const res = await request(app)
+      .post('/api/messages')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({
+        conversationId: conversationId,
+        content: 'Hey Boss, come back!'
+      });
+    
+    expect(res.statusCode).toEqual(201);
+    
+    // Check if Boss is back in participants
+    const convRes = await request(app)
+      .get(`/api/conversations/${conversationId}`)
+      .set('Authorization', `Bearer ${otherToken}`);
+    
+    expect(convRes.body.participants.some((p: any) => p._id === userId)).toBe(true);
+    expect(convRes.body.leftUsers).not.toContain(userId);
+  });
+
+  it('should fetch user by ID', async () => {
+    const res = await request(app)
+      .get(`/api/users/${otherUserId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toEqual(200);
+    expect(res.body.email).toEqual('worker@example.com');
   });
 });

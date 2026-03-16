@@ -630,9 +630,17 @@ a {
   background: var(--color-bg-app);
 }
 
+.search-result-item--static {
+  cursor: default;
+}
+.search-result-item--static:hover {
+  background: transparent;
+}
+
 .search-result-item__info {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .search-result-item__name {
@@ -710,6 +718,21 @@ a {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-primary);
+}
+
+.chat-window__contact-name--clickable {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  display: block;
+}
+
+.chat-window__contact-name--clickable:hover {
+  text-decoration: underline;
+  opacity: 0.8;
 }
 
 /* ============================================================

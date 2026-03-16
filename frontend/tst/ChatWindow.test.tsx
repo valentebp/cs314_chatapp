@@ -9,7 +9,8 @@ jest.mock('../src/context/AuthContext', () => ({
   useAuth: () => ({ user: { _id: 'u1', displayName: 'Me' } }),
 }));
 
-jest.mock('../src/components/conversations/AddMemberModal', () => () => null);
+jest.mock('../src/components/conversations/AddMemberModal', () => () => <div data-testid="add-member-modal" />);
+jest.mock('../src/components/conversations/MemberListModal', () => () => <div data-testid="member-list-modal" />);
 
 import { useChat } from '../src/context/ChatContext';
 
@@ -109,5 +110,14 @@ describe('ChatWindow', () => {
     (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: dmConversation });
     render(<ChatWindow />);
     expect(screen.queryByRole('button', { name: /add member/i })).not.toBeInTheDocument();
+  });
+
+  it('shows member list modal when group name is clicked', () => {
+    const { fireEvent } = require('@testing-library/react');
+    (useChat as jest.Mock).mockReturnValue({ ...baseChat, selectedConversation: groupConversation });
+    render(<ChatWindow />);
+    const groupNameBtn = screen.getByRole('button', { name: /view group members/i });
+    fireEvent.click(groupNameBtn);
+    expect(screen.getByTestId('member-list-modal')).toBeInTheDocument();
   });
 });
