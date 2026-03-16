@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useChat } from '../../context/ChatContext';
 
 /**
@@ -12,6 +12,10 @@ const MessageInput = () => {
   const [isSending, setIsSending] = useState(false);
   const isDisabled = !selectedConversation;
   const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (selectedConversation) textareaRef.current?.focus();
+  }, [selectedConversation]);
 
   const handleSend = async () => {
     const trimmed = text.trim();
