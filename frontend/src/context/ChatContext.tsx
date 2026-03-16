@@ -274,6 +274,22 @@ export const ChatProvider = ({ children }) => {
             : conv
         )
       );
+
+      // If a leave notice arrived, strip that member from the local members list
+      // so they can be re-added without a page refresh.
+      if (/has left the (conversation|group)\.$/.test(message.content) && message.senderId) {
+        const leavingId = message.senderId?.toString();
+        const removeMember = (members) =>
+          (members ?? []).filter((m) => m._id?.toString() !== leavingId);
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.dmId === convId ? { ...c, members: removeMember(c.members) } : c
+          )
+        );
+        setSelectedConversation((prev) =>
+          prev?.dmId === convId ? { ...prev, members: removeMember(prev.members) } : prev
+        );
+      }
     };
 
     socketService.on('message', handleReceiveMessage);
@@ -390,6 +406,36 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
+  const addMember = useCallback(async (dmId, newUser) => {
+    await api.post(`/api/conversations/${dmId}/participants`, { userId: newUser._id });
+    const newMember = { _id: newUser._id, displayName: newUser.displayName };
+    // Cache the new member so their avatar resolves in messages.
+    try { localStorage.setItem(`chatapp_member_${newUser._id}`, newUser.displayName); } catch { /* ignore */ }
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.dmId === dmId ? { ...c, members: [...(c.members ?? []), newMember] } : c
+      )
+    );
+    setSelectedConversation((prev) =>
+      prev?.dmId === dmId ? { ...prev, members: [...(prev.members ?? []), newMember] } : prev
+    );
+    // Post a join notice so all participants see it.
+    const joinText = `${newUser.displayName} has been added to the group.`;
+    try {
+      const msgRes = await api.post('/api/messages', { conversationId: dmId, content: joinText });
+      // Add immediately to the open conversation so the adder sees it without a reload.
+      if (selectedConversationRef.current?.dmId === dmId) {
+        setMessages((prev) => [...prev, { ...msgRes.data, senderId: msgRes.data.senderId?.toString?.() ?? userRef.current?._id }]);
+      }
+      pendingEchoes.current.push({ conversationId: dmId, content: joinText });
+      socketService.emit('sendMessage', {
+        conversationId: dmId,
+        content: joinText,
+        senderId: userRef.current?._id,
+      });
+    } catch { /* silently ignore */ }
+  }, []);
+
   const leaveConversation = useCallback(async (dmId) => {
     const conv = conversationsRef.current.find((c) => c.dmId === dmId);
     const userName =
@@ -404,7 +450,7 @@ export const ChatProvider = ({ children }) => {
     // Post the leaving message so all participants see it (persisted + real-time).
     try {
       await api.post('/api/messages', { conversationId: dmId, content: leaveText });
-      socketService.emit('sendMessage', { conversationId: dmId, content: leaveText });
+      socketService.emit('sendMessage', { conversationId: dmId, content: leaveText, senderId: userRef.current?._id });
     } catch { /* silently ignore — leave proceeds regardless */ }
 
     await api.post(`/api/conversations/${dmId}/leave`);
@@ -430,6 +476,7 @@ export const ChatProvider = ({ children }) => {
         addConversation,
         selectConversation,
         sendMessage,
+        addMember,
         deleteConversation,
         leaveConversation,
       }}

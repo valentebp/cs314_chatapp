@@ -641,6 +641,24 @@ a {
   color: var(--color-text-muted);
 }
 
+.search-result-item--col {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.search-result-item__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.search-result-item__error {
+  font-size: 0.8rem;
+  color: var(--color-error-text);
+  margin-top: 0.25rem;
+  padding-left: 0.25rem;
+}
+
 /* ============================================================
    Chat Window
    ============================================================ */
