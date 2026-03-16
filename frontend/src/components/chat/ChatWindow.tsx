@@ -4,6 +4,7 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import AvatarDisplay from '../profile/AvatarDisplay';
 import ErrorMessage from '../shared/ErrorMessage';
+import AddMemberModal from '../conversations/AddMemberModal';
 
 const ChatWindow = () => {
   const {
@@ -15,6 +16,7 @@ const ChatWindow = () => {
   } = useChat();
   const [actionError, setActionError] = useState('');
   const [isActing, setIsActing] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
 
   if (!selectedConversation) {
     return (
@@ -58,6 +60,15 @@ const ChatWindow = () => {
             <span className="chat-window__member-count">{memberCount} members</span>
           )}
         </div>
+        {isGroup && (
+          <button
+            className="btn btn--secondary btn--sm"
+            onClick={() => setShowAddMember(true)}
+            aria-label="Add member"
+          >
+            + Add
+          </button>
+        )}
         <button
           className="btn btn--secondary btn--sm"
           onClick={handleLeave}
@@ -81,6 +92,18 @@ const ChatWindow = () => {
 
       {/* Input */}
       <MessageInput />
+
+      {/* Add member modal */}
+      {showAddMember && (
+        <div className="modal-overlay" onClick={() => setShowAddMember(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <AddMemberModal
+              conversation={selectedConversation}
+              onClose={() => setShowAddMember(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

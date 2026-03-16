@@ -51,7 +51,8 @@ const MessageList = ({ messages, isLoading, error, isGroup = false, members = []
   };
 
   const isLeaveNotice = (content) =>
-    /has left the (conversation|group)\.$/.test(content);
+    /has left the (conversation|group)\.$/.test(content) ||
+    /has been added to the group\.$/.test(content);
 
   return (
     <div className="message-list">
