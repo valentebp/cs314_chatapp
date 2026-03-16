@@ -45,7 +45,9 @@ const MessageList = ({ messages, isLoading, error, isGroup = false, members = []
 
   const getSenderName = (senderId) => {
     const member = members.find((m) => m._id?.toString() === senderId?.toString());
-    return member?.displayName ?? null;
+    if (member) return member.displayName;
+    // Fall back to cached name for members who have left the group.
+    return localStorage.getItem(`chatapp_member_${senderId}`) || '?';
   };
 
   const isLeaveNotice = (content) =>

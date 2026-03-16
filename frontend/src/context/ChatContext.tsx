@@ -52,11 +52,13 @@ const mapConversation = (conv, currentUserId) => {
     creatorId: conv.creatorId,
     contact,
     groupName: isGroup ? (conv.name || 'Group Chat') : null,
-    members: (conv.participants ?? []).map((p) => ({
-      _id: p._id,
-      displayName:
-        [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unknown',
-    })),
+    members: (conv.participants ?? []).map((p) => {
+      const displayName =
+        [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unknown';
+      // Cache so messages from this member still show their avatar after they leave.
+      try { localStorage.setItem(`chatapp_member_${p._id}`, displayName); } catch { /* ignore */ }
+      return { _id: p._id, displayName };
+    }),
     lastMessage: null,
     unreadCount: 0,
   };

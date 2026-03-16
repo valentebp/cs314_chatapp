@@ -832,15 +832,12 @@ a {
 }
 
 /* ============================================================
-   Message bubble — sender name (group chats)
+   Message bubble — sender avatar (group chats, non-own messages)
    ============================================================ */
-.message-bubble__sender {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-accent);
-  margin-bottom: 2px;
-  padding-left: 2px;
+.message-bubble__avatar {
+  align-self: flex-end;
+  margin-right: 0.4rem;
+  flex-shrink: 0;
 }
 
 /* ============================================================
