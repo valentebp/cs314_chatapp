@@ -66,8 +66,12 @@ See `backend/README.md` for more detailed backend documentation.
 ### 2. Frontend Setup
 1. Navigate to the frontend directory: `cd frontend`
 2. Install dependencies: `npm install`
-3. Start the development server: `npm run dev`
-4. The app will typically be available at `http://localhost:5173`.
+3. (Optional) Create a `.env` file if the backend is on a different host:
+   ```env
+   VITE_API_URL=http://localhost:5000
+   ```
+4. Start the development server: `npm run dev`
+5. The app will typically be available at `http://localhost:5173`.
 
 See `frontend/README.md` for more detailed frontend documentation.
 
