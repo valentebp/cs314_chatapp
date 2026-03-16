@@ -369,9 +369,12 @@ export const ChatProvider = ({ children }) => {
         content,
       });
       // Notify other participants via socket.
+      // Include senderId so the backend re-broadcasts it and receivers can
+      // resolve the sender name without a page refresh.
       socketService.emit('sendMessage', {
         conversationId: selectedConversationRef.current.dmId,
         content,
+        senderId: userRef.current?._id,
       });
     } catch {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
