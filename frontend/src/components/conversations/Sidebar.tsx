@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -19,10 +20,25 @@ const Sidebar = () => {
     conversationsError,
     socketError,
     selectConversation,
+    muteConversation,
+    unmuteConversation,
   } = useChat();
   const navigate = useNavigate();
   const [showSearch, setShowSearch] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
+  const [menu, setMenu] = useState<{ conv: any; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
 
   const displayName = user?.displayName || user?.firstName || 'Me';
 
@@ -87,6 +103,8 @@ const Sidebar = () => {
                 conversation={conv}
                 isSelected={selectedConversation?.dmId === conv.dmId}
                 unreadCount={unreadCounts[conv.dmId] || 0}
+                isMuted={conv.isMuted ?? false}
+                onContextMenu={(e) => setMenu({ conv, x: e.clientX, y: e.clientY })}
                 onClick={() => selectConversation(conv)}
               />
             ))
@@ -101,6 +119,49 @@ const Sidebar = () => {
             <ContactSearch onClose={() => setShowSearch(false)} />
           </div>
         </div>
+      )}
+
+      {/* Conversation context menu (single instance, portal to body) */}
+      {menu && createPortal(
+        <ul
+          className="context-menu"
+          style={{ top: menu.y, left: menu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <li>
+            <button
+              className="context-menu__item"
+              onClick={() => {
+                menu.conv.isMuted
+                  ? unmuteConversation(menu.conv.dmId)
+                  : muteConversation(menu.conv.dmId);
+                setMenu(null);
+              }}
+            >
+              {menu.conv.isMuted ? (
+                <>
+                  <svg className="context-menu__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                  Unmute
+                </>
+              ) : (
+                <>
+                  <svg className="context-menu__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    <path d="M18.63 13A17.9 17.9 0 0 1 18 8"/>
+                    <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/>
+                    <path d="M18 8a6 6 0 0 0-9.33-5"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                  Mute
+                </>
+              )}
+            </button>
+          </li>
+        </ul>,
+        document.body
       )}
 
       {/* Group creation modal */}
