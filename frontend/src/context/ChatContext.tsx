@@ -61,6 +61,9 @@ const mapConversation = (conv, currentUserId) => {
     }),
     lastMessage: null,
     unreadCount: 0,
+    isMuted: (conv.mutedUsers ?? []).some(
+      (id) => id?.toString() === currentUserId?.toString()
+    ),
   };
 };
 
@@ -225,10 +228,20 @@ export const ChatProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [user, pollForNewConversations]);
 
+  // Tracks message IDs already processed by the socket handler so duplicate
+  // socket events (e.g. from React StrictMode double-invoke) don't double-count.
+  const processedMessageIds = useRef(new Set<string>());
+
   // Real-time incoming message handler.
   // Backend emits 'message' event with { conversationId, content }.
   useEffect(() => {
     const handleReceiveMessage = (message) => {
+      // Drop exact duplicates before doing anything else.
+      if (message._id) {
+        if (processedMessageIds.current.has(message._id)) return;
+        processedMessageIds.current.add(message._id);
+      }
+
       const convId = message.conversationId;
 
       // If the conversation isn't in our list yet (e.g. someone started a new
@@ -256,10 +269,13 @@ export const ChatProvider = ({ children }) => {
           ];
         });
       } else {
-        setUnreadCounts((prev) => ({
-          ...prev,
-          [convId]: (prev[convId] || 0) + 1,
-        }));
+        const isMuted = conversationsRef.current.find((c) => c.dmId === convId)?.isMuted;
+        if (!isMuted) {
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [convId]: (prev[convId] || 0) + 1,
+          }));
+        }
       }
 
       setConversations((prev) =>
@@ -301,24 +317,27 @@ export const ChatProvider = ({ children }) => {
     socketService.on('message', handleReceiveMessage);
     socketService.on('kicked', handleKicked);
 
-    socketService.on('connect_error', () => {
+    const handleConnectError = () => {
       setSocketError('Real-time connection lost. Trying to reconnect...');
-    });
+    };
 
-    socketService.on('connect', () => {
+    const handleConnect = () => {
       setSocketError(null);
       // Re-register and re-join rooms on reconnection
       if (userRef.current) {
         socketService.emit('register', userRef.current._id);
         conversationsRef.current.forEach((c) => socketService.emit('join', c.dmId));
       }
-    });
+    };
+
+    socketService.on('connect_error', handleConnectError);
+    socketService.on('connect', handleConnect);
 
     return () => {
       socketService.off('message', handleReceiveMessage);
       socketService.off('kicked', handleKicked);
-      socketService.off('connect_error');
-      socketService.off('connect');
+      socketService.off('connect_error', handleConnectError);
+      socketService.off('connect', handleConnect);
     };
   }, []);
 
@@ -490,6 +509,26 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
+  const muteConversation = useCallback(async (dmId) => {
+    await api.post(`/api/conversations/${dmId}/mute`);
+    setConversations((prev) =>
+      prev.map((c) => c.dmId === dmId ? { ...c, isMuted: true } : c)
+    );
+    setSelectedConversation((prev) =>
+      prev?.dmId === dmId ? { ...prev, isMuted: true } : prev
+    );
+  }, []);
+
+  const unmuteConversation = useCallback(async (dmId) => {
+    await api.post(`/api/conversations/${dmId}/unmute`);
+    setConversations((prev) =>
+      prev.map((c) => c.dmId === dmId ? { ...c, isMuted: false } : c)
+    );
+    setSelectedConversation((prev) =>
+      prev?.dmId === dmId ? { ...prev, isMuted: false } : prev
+    );
+  }, []);
+
   const kickMember = useCallback(async (dmId, memberId, memberName) => {
     const currentUserId = userRef.current?._id;
     const kickText = `${memberName} has been removed from the group.`;
@@ -543,6 +582,8 @@ export const ChatProvider = ({ children }) => {
         deleteConversation,
         leaveConversation,
         kickMember,
+        muteConversation,
+        unmuteConversation,
         socketError,
       }}
     >
